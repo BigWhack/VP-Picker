@@ -16,7 +16,7 @@ export function defaultSettings(): Settings {
 export function getSettings(db: Db): Settings {
   const rows = db.prepare(`SELECT key, value_json FROM settings`).all() as { key: string; value_json: string }[];
   const s = defaultSettings() as unknown as Record<string, unknown>;
-  for (const r of rows) s[r.key] = JSON.parse(r.value_json);
+  for (const r of rows) if (!r.key.includes('.')) s[r.key] = JSON.parse(r.value_json);
   return s as unknown as Settings;
 }
 
@@ -30,4 +30,16 @@ export function updateSettings(db: Db, patch: Partial<Settings>): Settings {
     }
   })();
   return getSettings(db);
+}
+
+/** Internal key/value state (keys contain a dot so they never appear in Settings). */
+export function getState<T>(db: Db, key: string): T | null {
+  const r = db.prepare(`SELECT value_json FROM settings WHERE key = ?`).get(key) as { value_json: string } | undefined;
+  return r ? (JSON.parse(r.value_json) as T) : null;
+}
+
+export function setState(db: Db, key: string, value: unknown): void {
+  if (!key.includes('.')) throw new Error('state keys must contain a dot');
+  if (value === null || value === undefined) db.prepare(`DELETE FROM settings WHERE key = ?`).run(key);
+  else db.prepare(`INSERT INTO settings (key, value_json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json`).run(key, JSON.stringify(value));
 }

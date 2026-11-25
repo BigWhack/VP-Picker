@@ -3,6 +3,9 @@ import type { Db } from './db/client.js';
 import { SyncController, type StravaSync } from './sync/job.js';
 import { registerSyncRoutes } from './api/sync.js';
 import { registerTodayRoutes } from './api/today.js';
+import { registerStravaAuthRoutes } from './api/strava-auth.js';
+import { StravaClient } from './ingest/strava/client.js';
+import { createStravaSync } from './ingest/strava/sync.js';
 
 export interface AppDeps {
   db: Db;
@@ -19,11 +22,16 @@ export interface AppDeps {
 
 export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: false, bodyLimit: 200 * 1024 * 1024 });
+  if (deps.strava === undefined && deps.env?.STRAVA_CLIENT_ID && deps.env.STRAVA_CLIENT_SECRET && !deps.env.OFFLINE) {
+    const client = new StravaClient(deps.db, { clientId: deps.env.STRAVA_CLIENT_ID, clientSecret: deps.env.STRAVA_CLIENT_SECRET }, deps.fetchFn ?? fetch, deps.now);
+    deps.strava = createStravaSync(deps.db, client);
+  }
   if (!deps.sync) {
     deps.sync = new SyncController(() => ({ db: deps.db, dataDir: deps.dataDir, home: deps.home, now: deps.now, strava: deps.strava ?? null }));
   }
   app.get('/api/health', async () => ({ ok: true }));
   registerSyncRoutes(app, deps);
   registerTodayRoutes(app, deps);
+  registerStravaAuthRoutes(app, deps);
   return app;
 }
