@@ -6,6 +6,7 @@ import { getExtras, getGear, getWorkout, listWorkouts, workoutStreams } from '..
 import { getAnalysis, getPersonalRecords } from '../repo/derived.js';
 import { localDate, weekStart, addDays, dateRange } from '../analytics/dates.js';
 import { recordsBoard } from '../analytics/records.js';
+import { listLocalShoes, shoeForDate, shoeTotals, shoeView } from './gear.js';
 import { todayOf, tzOf } from './common.js';
 
 /** Downsample aligned stream arrays to at most `max` points for the browser. */
@@ -22,6 +23,14 @@ export function downsample(s: Streams, max = 1500): Streams {
 
 export function registerWorkoutRoutes(app: FastifyInstance, deps: AppDeps) {
   const { db } = deps;
+  /** Shoe added in Settings that covers this run's date (used when Strava has no shoe for it). */
+  const localShoe = (w: { sport: string; start: string; gearId?: string }) => {
+    if (w.sport !== 'run' || w.gearId) return null;
+    const shoe = shoeForDate(listLocalShoes(db), localDate(w.start, tzOf(deps)));
+    if (!shoe) return null;
+    const v = shoeView(shoe, shoeTotals(db).get(shoe.id));
+    return { name: v.name, kind: v.kind, distanceKm: v.distanceKm, warn: v.warn };
+  };
 
   app.get('/api/workouts', async (req) => {
     const q = req.query as Record<string, string | undefined>;
@@ -70,7 +79,7 @@ export function registerWorkoutRoutes(app: FastifyInstance, deps: AppDeps) {
     const extras = w.stravaId ? getExtras(db, w.stravaId) : null;
     return {
       workout: w, sources: w.sources, analysis, streams: streams ? downsample(streams) : null, weather: w.weather ?? null,
-      gear: gear ? { name: gear.name, kind: gear.kind, distanceKm: gear.distanceM / 1000, warn: gear.kind === 'shoe' && gear.distanceM / 1000 >= CONFIG.gear.shoeWarnKm } : null,
+      gear: gear ? { name: gear.name, kind: gear.kind, distanceKm: gear.distanceM / 1000, warn: gear.kind === 'shoe' && gear.distanceM / 1000 >= CONFIG.gear.shoeWarnKm } : localShoe(w),
       similar, prs: getPersonalRecords(db).filter((r) => r.workoutId === id), laps: extras?.laps ?? null, segments: extras?.segments ?? null,
     };
   });

@@ -15,6 +15,13 @@
       "when": 1795627970403,
       "tag": "0001_samples_start_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795628753175,
+      "tag": "0002_local_shoes",
+      "breakpoints": true
     }
   ]
 }

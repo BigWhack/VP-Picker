@@ -11,6 +11,7 @@ import { registerTrendRoutes } from './api/trends.js';
 import { registerSettingsRoutes } from './api/settings.js';
 import { registerLanAuth } from './api/lan-auth.js';
 import { registerIngestRoutes } from './api/ingest.js';
+import { registerGearRoutes } from './api/gear.js';
 import { StravaClient } from './ingest/strava/client.js';
 import { createStravaSync } from './ingest/strava/sync.js';
 import { enrichWeather } from './ingest/weather.js';
@@ -51,5 +52,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerHeartActivityRoutes(app, deps);
   registerTrendRoutes(app, deps);
   registerSettingsRoutes(app, deps);
+  registerGearRoutes(app, deps);
   return app;
 }

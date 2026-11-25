@@ -48,15 +48,15 @@ export function Settings() {
       {stravaMsg && <div className={`flag ${stravaMsg === 'connected' ? 'info' : ''}`}>{STRAVA_MSG[stravaMsg] ?? `Strava: ${stravaMsg}`}</div>}
 
       <Card title="Data sources">
-        <div className="list-row"><span style={{ flex: '1 1 260px' }}><strong>Strava</strong><br /><span className="small muted">{setup?.stravaConnected ? `Connected${setup.backfillDone ? '' : ` · importing history (${setup.backfillRemaining} queued)`}` : setup?.stravaConfigured ? 'Not connected' : 'API key not set — run npm run setup'}</span></span>
-          {setup?.stravaConnected
-            ? <button type="button" className="btn" onClick={async () => { await postApi('/api/strava/disconnect'); invalidate(); }}>Disconnect</button>
-            : setup?.stravaConfigured && <a className="btn primary" href="/auth/strava/start" style={{ textDecoration: 'none' }}>Connect Strava</a>}
-        </div>
         <div className="list-row"><span style={{ flex: '1 1 260px' }}><strong>Apple Health (Health Auto Export)</strong><br /><span className="small muted">{setup?.haeFilesSeen ?? 0} files imported · watching {data.settings.haeFolder ?? data.discoveredHaeFolder ?? 'no folder found yet'}</span></span>
           <button type="button" className="btn" onClick={async () => { await postApi('/api/sync/run'); setTimeout(invalidate, 3000); }}>Sync now</button>
         </div>
         {field('haeFolder', 'Health Auto Export folder (leave blank to auto-detect)', <input value={String(form.haeFolder ?? '')} placeholder={data.discoveredHaeFolder ?? '~/Library/Mobile Documents/…/Documents'} onChange={(e) => set('haeFolder', e.target.value)} />)}
+        <div className="list-row"><span style={{ flex: '1 1 260px' }}><strong>Strava</strong> <span className="pill">Optional</span><br /><span className="small muted">{setup?.stravaConnected ? `Connected${setup.backfillDone ? '' : ` · importing history (${setup.backfillRemaining} queued)`}` : 'Not used — workouts come from your Apple Watch. Strava would only add activity names and segments.'}</span></span>
+          {setup?.stravaConnected
+            ? <button type="button" className="btn" onClick={async () => { await postApi('/api/strava/disconnect'); invalidate(); }}>Disconnect</button>
+            : setup?.stravaConfigured && <a className="btn primary" href="/auth/strava/start" style={{ textDecoration: 'none' }}>Connect Strava</a>}
+        </div>
         {data.imports.length > 0 && (
           <details><summary className="small muted" style={{ cursor: 'pointer' }}>Recent imports</summary>
             {data.imports.map((i) => <div key={i.receivedAt + i.path} className="small" style={{ padding: '4px 0' }}><span className={i.status === 'ok' ? 'good-text' : 'worse-text'}>{i.status}</span> {new Date(i.receivedAt).toLocaleString('en-GB')} · {i.path.split('/').pop()}{i.error ? ` — ${i.error}` : ''}</div>)}
@@ -92,6 +92,8 @@ export function Settings() {
         <button type="button" className="btn primary" onClick={save}>Save settings</button>
         {msg && <span className="small muted-2" role="status">{msg}</span>}
       </div>
+
+      <ShoesCard />
 
       <LanCard lanMode={data.settings.lanMode} ingestToken={data.settings.ingestToken} onChange={invalidate} />
 
@@ -144,6 +146,51 @@ function LanCard({ lanMode, ingestToken, onChange }: { lanMode: boolean; ingestT
         </>
       )}
       {msg && <p className="small muted-2" role="status" style={{ margin: 0 }}>{msg}</p>}
+    </Card>
+  );
+}
+
+interface Shoe { id: string; name: string; inUseFrom: string; retiredFrom: string | null; startKm: number; distanceKm: number; runs: number; warn: boolean }
+
+function ShoesCard() {
+  const { data } = useApi<{ shoes: Shoe[] }>('/api/gear');
+  const invalidate = useInvalidateAll();
+  const today = new Date().toISOString().slice(0, 10);
+  const [name, setName] = useState('');
+  const [from, setFrom] = useState(today);
+  const [startKm, setStartKm] = useState('0');
+  const [err, setErr] = useState<Record<string, string>>({});
+  const add = async () => {
+    setErr({});
+    try { await postApi('/api/gear', { name, inUseFrom: from, startKm: Number(startKm) || 0 }); setName(''); setStartKm('0'); invalidate(); }
+    catch (e) { setErr(((e as { data?: { fields?: Record<string, string> } }).data?.fields) ?? { _: (e as Error).message }); }
+  };
+  const act = async (path: string, body: unknown, method: string) => { await postApi(path, body, method); invalidate(); };
+  const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return (
+    <Card title="Shoes" aside="Runs count towards the newest shoe in use on that day">
+      {data?.shoes.length === 0 && <p className="empty" style={{ margin: 0 }}>No shoes yet. Add a pair to track its mileage; most last 500–800 km.</p>}
+      {data?.shoes.map((s) => (
+        <div key={s.id} className="list-row">
+          <span style={{ flex: '1 1 220px' }}>
+            <strong>{s.name}</strong>{s.retiredFrom && <span className="pill" style={{ marginLeft: 8 }}>Retired</span>}
+            <br /><span className="small muted">Since {fmt(s.inUseFrom)}{s.retiredFrom ? ` · retired ${fmt(s.retiredFrom)}` : ''} · {s.runs} runs{s.startKm ? ` · started at ${s.startKm} km` : ''}</span>
+          </span>
+          <span style={{ flex: '0 0 110px' }}><strong className={s.warn ? 'worse-text' : ''}>{Math.round(s.distanceKm)} km</strong>{s.warn && <><br /><span className="small worse-text">Time for new ones?</span></>}</span>
+          <span style={{ display: 'flex', gap: 6 }}>
+            {s.retiredFrom
+              ? <button type="button" className="btn" onClick={() => act(`/api/gear/${encodeURIComponent(s.id)}`, { retiredFrom: null }, 'PATCH')}>Un-retire</button>
+              : <button type="button" className="btn" onClick={() => act(`/api/gear/${encodeURIComponent(s.id)}`, { retiredFrom: today }, 'PATCH')}>Retire</button>}
+            <button type="button" className="btn" aria-label={`Delete ${s.name}`} onClick={() => { if (window.confirm(`Delete ${s.name}?`)) void act(`/api/gear/${encodeURIComponent(s.id)}`, undefined, 'DELETE'); }}>Delete</button>
+          </span>
+        </div>
+      ))}
+      <div className="form-grid divider">
+        <label className="field">Shoe name<input value={name} placeholder="e.g. Pegasus 41" onChange={(e) => setName(e.target.value)} />{err.name && <span className="worse-text small">{err.name}</span>}</label>
+        <label className="field">In use from<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />{err.inUseFrom && <span className="worse-text small">{err.inUseFrom}</span>}</label>
+        <label className="field">Distance already done (km)<input inputMode="decimal" value={startKm} onChange={(e) => setStartKm(e.target.value)} />{err.startKm && <span className="worse-text small">{err.startKm}</span>}</label>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}><button type="button" className="btn primary" onClick={add} disabled={!name.trim()}>Add shoes</button></div>
+      </div>
     </Card>
   );
 }

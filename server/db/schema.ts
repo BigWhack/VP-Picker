@@ -78,6 +78,10 @@ export const gear = sqliteTable('gear', {
   name: text('name').notNull(),
   kind: text('kind').notNull(),
   distanceM: real('distance_m').notNull(),
+  /** Shoes added in Settings (not from Strava). */
+  local: integer('local').notNull().default(0),
+  inUseFrom: text('in_use_from'),
+  retiredFrom: text('retired_from'),
 });
 
 export const settings = sqliteTable('settings', {

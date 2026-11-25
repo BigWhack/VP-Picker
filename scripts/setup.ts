@@ -28,7 +28,7 @@ let closed = false;
 const whenClosed = new Promise<string>((res) => rl.once('close', () => { closed = true; res(''); }));
 const ask = (q: string) => (closed ? Promise.resolve('') : Promise.race([rl.question(q), whenClosed]));
 console.log('\nHealth dashboard setup\n======================\n');
-console.log('Strava (optional, but recommended):');
+console.log('Strava (optional — not needed; your Apple Watch data covers workouts. Press Enter twice to skip):');
 console.log('  1. Go to https://www.strava.com/settings/api and create an application.');
 console.log('  2. Set "Authorization Callback Domain" to: localhost');
 console.log('  3. Copy the Client ID and Client Secret below (press Enter to skip).\n');

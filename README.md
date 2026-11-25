@@ -1,7 +1,7 @@
 # Health — a personal Apple Watch + Strava dashboard
 
 A private health dashboard that runs on your Mac. It pulls in everything your Apple Watch records (through the
-**Health Auto Export** iPhone app) and your **Strava** activities, refreshes about once an hour, and shows:
+**Health Auto Export** iPhone app) — and, optionally, your **Strava** activities — refreshes about once an hour, and shows:
 
 - **Today** — a plain-English summary of how recovered you are and how you slept, your numbers against your own
   30-day normal, last night's sleep stages, your sleep window, HRV and resting-heart-rate trends, and this week vs last.
@@ -9,7 +9,8 @@ A private health dashboard that runs on your Mac. It pulls in everything your Ap
 - **Heart** — resting HR, HRV, VO₂ max (with fitness category), walking HR, overnight low, HR recovery.
 - **Activity** — move/exercise/stand/steps against goals, daily charts, a year heatmap.
 - **Workouts** — every run, ride, walk and gym session; runs get per-km splits, hill-adjusted pace, heart-rate drift,
-  running form and power, personal bests; rides get climbs, headwind share and power; all get maps, zones, weather and load.
+  running form and power, personal bests and shoe mileage; rides get climbs, headwind share and power; all get maps,
+  zones, weather, load and a comparison with similar sessions.
 - **Trends** — any metric over any period, comparisons, fitness/fatigue/form, race predictions and "patterns"
   (for example, late bedtimes going with lower recovery).
 
@@ -32,14 +33,19 @@ brew install node@22
 
 ```bash
 npm install
-npm run setup      # checks Node, creates .env and data/, asks for your Strava keys
+npm run setup      # checks Node, creates .env and data/ (press Enter to skip the Strava questions)
 npm run build
 npm start          # then open http://localhost:4321
 ```
 
 The first time, the home page shows a setup checklist instead of the dashboard.
 
-## 2. Connect Strava
+## 2. Strava (optional)
+
+You don't need Strava: workouts, routes, heart rate, splits, personal bests and shoe mileage all work from your Apple
+Watch alone (add your shoes in **Settings → Shoes**). Strava only adds your activity names, its segments and its own
+shoe/bike mileage. Creating a Strava API app may need a Strava subscription; if you have one:
+
 
 1. Go to <https://www.strava.com/settings/api> and create an application (any name/website).
 2. Set **Authorization Callback Domain** to `localhost`.
@@ -49,7 +55,7 @@ The first time, the home page shows a setup checklist instead of the dashboard.
 Your whole Strava history is imported in the background. Strava limits how fast apps can download, so a long
 history can take a day or two; progress is shown in Settings.
 
-## 3. Set up Health Auto Export (iPhone)
+## 3. Set up Health Auto Export (iPhone) — the main data source
 
 Health Auto Export reads Apple Health on your iPhone and saves it as files. Its automations need **Premium**.
 Create three automations, each with **Automation Type: iCloud Drive**, **Format: JSON**, **Export version 2**, a
