@@ -1,0 +1,23 @@
+{
+  "data": {
+    "metrics": [
+      { "name": "step_count", "units": "count", "data": [
+        { "qty": 820, "date": "2026-11-24 07:00:00 +0000", "source": "Jack's Apple Watch|Jack's iPhone" },
+        { "qty": 1310, "date": "2026-11-24 08:00:00 +0000", "source": "Jack's Apple Watch|Jack's iPhone" }
+      ] },
+      { "name": "heart_rate", "units": "count/min", "data": [
+        { "date": "2026-11-24 07:00:00 +0000", "Min": 48, "Avg": 61, "Max": 92, "source": "Jack's Apple Watch" }
+      ] },
+      { "units": "ms", "data": [
+        { "qty": 58.2, "date": "2026-11-24 03:12:00 +0000", "source": "Jack's Apple Watch" }
+      ], "name": "heart_rate_variability" },
+      { "name": "walking_running_distance", "units": "mi", "data": [
+        { "qty": 1, "date": "2026-11-24 07:00:00 +0000", "source": "Jack's iPhone" }
+      ] },
+      { "name": "mystery_metric", "units": "widgets", "data": [
+        { "qty": 3, "date": "2026-11-24 07:00:00 +0000" }
+      ] }
+    ],
+    "workouts": []
+  }
+}

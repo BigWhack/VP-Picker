@@ -1,0 +1,11 @@
+{ "data": { "metrics": [ { "name": "sleep_analysis", "units": "hr", "data": [
+  { "date": "2026-11-23 23:12:00 +0000", "start": "2026-11-23 23:12:00 +0000", "end": "2026-11-23 23:32:00 +0000", "startDate": "2026-11-23 23:12:00 +0000", "endDate": "2026-11-23 23:32:00 +0000", "qty": 0.333, "value": "Core", "source": "Jack's Apple Watch" },
+  { "date": "2026-11-23 23:32:00 +0000", "startDate": "2026-11-23 23:32:00 +0000", "endDate": "2026-11-24 00:17:00 +0000", "qty": 0.75, "value": "Deep", "source": "Jack's Apple Watch" },
+  { "date": "2026-11-24 00:17:00 +0000", "startDate": "2026-11-24 00:17:00 +0000", "endDate": "2026-11-24 00:22:00 +0000", "qty": 0.083, "value": "Awake", "source": "Jack's Apple Watch" },
+  { "date": "2026-11-24 00:22:00 +0000", "startDate": "2026-11-24 00:22:00 +0000", "endDate": "2026-11-24 00:50:00 +0000", "qty": 0.466, "value": "REM", "source": "Jack's Apple Watch" },
+  { "date": "2026-11-24 00:50:00 +0000", "startDate": "2026-11-24 00:50:00 +0000", "endDate": "2026-11-24 01:10:00 +0000", "qty": 0.333, "value": "Unspecified", "source": "Jack's Apple Watch" },
+  { "date": "2026-11-23 23:00:00 +0000", "startDate": "2026-11-23 23:00:00 +0000", "endDate": "2026-11-24 06:40:00 +0000", "qty": 7.66, "value": "In Bed", "source": "Jack's iPhone" }
+] },
+{ "name": "sleep_analysis", "units": "hr", "data": [
+  { "date": "2026-11-24 00:00:00 +0000", "totalSleep": 7.5, "asleep": 0.5, "core": 3.5, "deep": 1.5, "rem": 2.0, "sleepStart": "2026-11-23 23:00:00 +0000", "sleepEnd": "2026-11-24 06:30:00 +0000", "inBed": 8.0, "awake": 0, "source": "Jack's Apple Watch" }
+] } ] } }
