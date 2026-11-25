@@ -11,6 +11,7 @@ import { recoveryScore } from './recovery.js';
 import { sleepScore, sleepDebt, circularSdMin } from './sleep.js';
 import { loadSeries, estimateHrMax } from './load.js';
 import { analyzeAllWorkouts } from './workouts.js';
+import { rebuildRecords } from './records.js';
 import { computeFlags, headline } from './insights.js';
 import { addDays, dateRange, localDate } from './dates.js';
 
@@ -115,5 +116,6 @@ export async function recompute(db: Db, opts: { from?: string | 'all'; to?: stri
   }
   saveDaily(db, rows);
   saveScores(db, scores);
+  rebuildRecords(db);
   return { days: target.length };
 }
