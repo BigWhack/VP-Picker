@@ -8,6 +8,9 @@ import { Sleep } from './pages/Sleep';
 import { Heart } from './pages/Heart';
 import { Activity } from './pages/Activity';
 import { Trends } from './pages/Trends';
+import { Settings } from './pages/Settings';
+import { Setup, type SetupData } from './pages/Setup';
+import { useApi } from './api';
 import { WorkoutDetail } from './pages/WorkoutDetail';
 import './theme.css';
 
@@ -32,20 +35,27 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Home() {
+  const { data } = useApi<SetupData>('/api/setup');
+  if (!data) return <p className="empty">Loading…</p>;
+  return data.daysOfData === 0 ? <Setup /> : <Today />;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Shell>
           <Routes>
-            <Route path="/" element={<Today />} />
+            <Route path="/" element={<Home />} />
             <Route path="/sleep" element={<Sleep />} />
             <Route path="/heart" element={<Heart />} />
             <Route path="/activity" element={<Activity />} />
             <Route path="/workouts" element={<Workouts />} />
             <Route path="/workouts/:id" element={<WorkoutDetail />} />
             <Route path="/trends" element={<Trends />} />
-            <Route path="/settings" element={<Placeholder title="Settings" />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/setup" element={<Setup />} />
             <Route path="*" element={<Placeholder title="Not found" />} />
           </Routes>
         </Shell>

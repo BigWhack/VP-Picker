@@ -1,0 +1,117 @@
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useApi, postApi, useInvalidateAll } from '../api';
+import { Card } from '../components/Card';
+import type { SetupData } from './Setup';
+
+interface SettingsResp {
+  settings: { tz: string; dob?: string; sex?: 'male' | 'female'; hrMax?: number; hrRestOverride?: number; sleepNeedMin: number;
+    goals: { steps: number; activeKcal: number; exerciseMin: number; standHours: number }; ftp?: number; zoneModel: 'hrr' | 'pctMax'; units: 'metric' | 'imperial';
+    haeFolder?: string; lanMode: boolean; hasPasscode: boolean; ingestToken: string | null };
+  discoveredHaeFolder: string | null;
+  imports: { source: string; path: string; status: string; error: string | null; receivedAt: string }[];
+  config: { recoveryWeights: Record<string, number>; bands: { well: number; moderate: number } };
+}
+
+const STRAVA_MSG: Record<string, string> = { connected: 'Strava connected. Importing your history in the background.', 'missing-scope': 'Strava needs permission to read all activities — please tick every box when connecting.', denied: 'Strava connection was cancelled.' };
+const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
+
+export function Settings() {
+  const { data } = useApi<SettingsResp>('/api/settings');
+  const setup = useApi<SetupData>('/api/setup', { refetchMs: 15000 }).data;
+  const invalidate = useInvalidateAll();
+  const [params] = useSearchParams();
+  const [form, setForm] = useState<Record<string, unknown>>({});
+  const [msg, setMsg] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  useEffect(() => { if (data) setForm({ ...data.settings, sleepNeedHours: (data.settings.sleepNeedMin / 60).toString() }); }, [data]);
+  if (!data) return <p className="empty">Loading…</p>;
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  const goals = (form.goals ?? data.settings.goals) as SettingsResp['settings']['goals'];
+  const stravaMsg = params.get('strava');
+
+  const save = async () => {
+    setErrors({}); setMsg(null);
+    const payload = {
+      tz: form.tz, dob: form.dob || null, sex: form.sex || null, hrMax: numOrNull(String(form.hrMax ?? '')), hrRestOverride: numOrNull(String(form.hrRestOverride ?? '')),
+      sleepNeedMin: Math.round(Number(form.sleepNeedHours) * 60), goals, ftp: numOrNull(String(form.ftp ?? '')), zoneModel: form.zoneModel, units: form.units, haeFolder: form.haeFolder || null,
+    };
+    try { await postApi('/api/settings', payload, 'PUT'); setMsg('Saved. Scores are being recalculated.'); invalidate(); }
+    catch (e) { setErrors(((e as { data?: { fields?: Record<string, string> } }).data?.fields) ?? {}); setMsg('Please fix the highlighted fields.'); }
+  };
+  const field = (k: string, label: string, input: React.ReactNode) => (
+    <label className="field">{label}{input}{errors[k] && <span className="worse-text small">{errors[k]}</span>}</label>
+  );
+  return (
+    <>
+      <h1 className="headline">Settings</h1>
+      {stravaMsg && <div className={`flag ${stravaMsg === 'connected' ? 'info' : ''}`}>{STRAVA_MSG[stravaMsg] ?? `Strava: ${stravaMsg}`}</div>}
+
+      <Card title="Data sources">
+        <div className="list-row"><span style={{ flex: '1 1 260px' }}><strong>Strava</strong><br /><span className="small muted">{setup?.stravaConnected ? `Connected${setup.backfillDone ? '' : ` · importing history (${setup.backfillRemaining} queued)`}` : setup?.stravaConfigured ? 'Not connected' : 'API key not set — run npm run setup'}</span></span>
+          {setup?.stravaConnected
+            ? <button type="button" className="btn" onClick={async () => { await postApi('/api/strava/disconnect'); invalidate(); }}>Disconnect</button>
+            : setup?.stravaConfigured && <a className="btn primary" href="/auth/strava/start" style={{ textDecoration: 'none' }}>Connect Strava</a>}
+        </div>
+        <div className="list-row"><span style={{ flex: '1 1 260px' }}><strong>Apple Health (Health Auto Export)</strong><br /><span className="small muted">{setup?.haeFilesSeen ?? 0} files imported · watching {data.settings.haeFolder ?? data.discoveredHaeFolder ?? 'no folder found yet'}</span></span>
+          <button type="button" className="btn" onClick={async () => { await postApi('/api/sync/run'); setTimeout(invalidate, 3000); }}>Sync now</button>
+        </div>
+        {field('haeFolder', 'Health Auto Export folder (leave blank to auto-detect)', <input value={String(form.haeFolder ?? '')} placeholder={data.discoveredHaeFolder ?? '~/Library/Mobile Documents/…/Documents'} onChange={(e) => set('haeFolder', e.target.value)} />)}
+        {data.imports.length > 0 && (
+          <details><summary className="small muted" style={{ cursor: 'pointer' }}>Recent imports</summary>
+            {data.imports.map((i) => <div key={i.receivedAt + i.path} className="small" style={{ padding: '4px 0' }}><span className={i.status === 'ok' ? 'good-text' : 'worse-text'}>{i.status}</span> {new Date(i.receivedAt).toLocaleString('en-GB')} · {i.path.split('/').pop()}{i.error ? ` — ${i.error}` : ''}</div>)}
+          </details>
+        )}
+      </Card>
+
+      <Card title="Profile" aside="Used for heart-rate zones, training load and VO₂ max category">
+        <div className="form-grid">
+          {field('dob', 'Date of birth', <input type="date" value={String(form.dob ?? '')} onChange={(e) => set('dob', e.target.value)} />)}
+          {field('sex', 'Sex (for physiology formulas)', <select value={String(form.sex ?? '')} onChange={(e) => set('sex', e.target.value)}><option value="">Not set</option><option value="male">Male</option><option value="female">Female</option></select>)}
+          {field('hrMax', 'Max heart rate (blank = estimate)', <input inputMode="numeric" value={String(form.hrMax ?? '')} onChange={(e) => set('hrMax', e.target.value)} />)}
+          {field('hrRestOverride', 'Resting heart rate (blank = from watch)', <input inputMode="numeric" value={String(form.hrRestOverride ?? '')} onChange={(e) => set('hrRestOverride', e.target.value)} />)}
+          {field('ftp', 'Cycling FTP in watts (optional)', <input inputMode="numeric" value={String(form.ftp ?? '')} onChange={(e) => set('ftp', e.target.value)} />)}
+          {field('zoneModel', 'Heart-rate zone model', <select value={String(form.zoneModel)} onChange={(e) => set('zoneModel', e.target.value)}><option value="hrr">Heart-rate reserve</option><option value="pctMax">% of max HR</option></select>)}
+          {field('sleepNeedMin', 'Sleep need (hours)', <input inputMode="decimal" value={String(form.sleepNeedHours ?? '')} onChange={(e) => set('sleepNeedHours', e.target.value)} />)}
+          {field('tz', 'Time zone', <input value={String(form.tz ?? '')} onChange={(e) => set('tz', e.target.value)} />)}
+        </div>
+      </Card>
+
+      <Card title="Daily goals">
+        <div className="form-grid">
+          {(['steps', 'activeKcal', 'exerciseMin', 'standHours'] as const).map((k) => (
+            <label key={k} className="field">{({ steps: 'Steps', activeKcal: 'Move (kcal)', exerciseMin: 'Exercise (min)', standHours: 'Stand hours' })[k]}
+              <input inputMode="numeric" value={goals[k]} onChange={(e) => set('goals', { ...goals, [k]: Number(e.target.value) || 0 })} />
+            </label>
+          ))}
+        </div>
+        {errors.goals && <span className="worse-text small">{errors.goals}</span>}
+      </Card>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="button" className="btn primary" onClick={save}>Save settings</button>
+        {msg && <span className="small muted-2" role="status">{msg}</span>}
+      </div>
+
+      <Card title="How the scores work">
+        <p className="small muted-2" style={{ margin: 0 }}>
+          <strong>Recovery (0–100)</strong> compares last night with your own last 30 days: HRV {data.config.recoveryWeights.hrv}%, resting heart rate {data.config.recoveryWeights.rhr}%, sleep vs need {data.config.recoveryWeights.sleep}%, breathing rate {data.config.recoveryWeights.resp}%, training form {data.config.recoveryWeights.form}%.
+          {' '}{data.config.bands.well}+ is well recovered, {data.config.bands.moderate}–{data.config.bands.well - 1} moderate, below {data.config.bands.moderate} low.
+          <br /><strong>Sleep score</strong>: duration vs need 50, efficiency 15, deep + REM share 20, bedtime regularity 15.
+          <br /><strong>Training load</strong> is Banister TRIMP from heart rate; fitness is its 42-day average, fatigue its 7-day average, form = fitness − fatigue.
+          <br />Every number needs 7 days of history before it is compared with your normal (“Calibrating”).
+        </p>
+      </Card>
+
+      <Card title="Your data">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <a className="btn" href="/api/export/db" style={{ textDecoration: 'none' }}>Download database</a>
+          {['daily', 'workouts', 'scores', 'load'].map((t) => <a key={t} className="btn" href={`/api/export/csv/${t}`} style={{ textDecoration: 'none' }}>{t}.csv</a>)}
+          <button type="button" className="btn" onClick={async () => { await postApi('/api/analytics/rebuild'); setMsg('Rebuilding all analytics…'); setTimeout(invalidate, 5000); }}>Rebuild analytics</button>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>All data is stored in the <code>data/</code> folder on this Mac. Back it up by copying that folder.</p>
+      </Card>
+      <p className="small muted">Not a medical device. For personal insight only. Recovery, sleep and fitness numbers are estimates to help you notice trends, not diagnoses.</p>
+    </>
+  );
+}
