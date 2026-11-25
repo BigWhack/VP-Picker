@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from './db/client.js';
 import { SyncController, type StravaSync } from './sync/job.js';
 import { registerSyncRoutes } from './api/sync.js';
+import { registerTodayRoutes } from './api/today.js';
 
 export interface AppDeps {
   db: Db;
@@ -23,5 +24,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   }
   app.get('/api/health', async () => ({ ok: true }));
   registerSyncRoutes(app, deps);
+  registerTodayRoutes(app, deps);
   return app;
 }

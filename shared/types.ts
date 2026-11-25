@@ -56,3 +56,5 @@ export interface Settings {
 }
 
 export type DailyRow = { date: string } & Record<string, number | null>;
+
+export interface Series { points: { date: string; value: number | null }[]; band: { low: number; high: number } | null }
