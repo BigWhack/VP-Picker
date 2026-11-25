@@ -4,6 +4,7 @@ import { SyncController, type StravaSync } from './sync/job.js';
 import { registerSyncRoutes } from './api/sync.js';
 import { registerTodayRoutes } from './api/today.js';
 import { registerStravaAuthRoutes } from './api/strava-auth.js';
+import { registerWorkoutRoutes } from './api/workouts.js';
 import { StravaClient } from './ingest/strava/client.js';
 import { createStravaSync } from './ingest/strava/sync.js';
 import { enrichWeather } from './ingest/weather.js';
@@ -37,5 +38,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerSyncRoutes(app, deps);
   registerTodayRoutes(app, deps);
   registerStravaAuthRoutes(app, deps);
+  registerWorkoutRoutes(app, deps);
   return app;
 }

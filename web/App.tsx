@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Nav } from './components/Nav';
 import { SyncStatus } from './components/SyncStatus';
 import { Today } from './pages/Today';
+import { Workouts } from './pages/Workouts';
+import { WorkoutDetail } from './pages/WorkoutDetail';
 import './theme.css';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 60000, retry: 1 } } });
@@ -36,8 +38,8 @@ export function App() {
             <Route path="/sleep" element={<Placeholder title="Sleep" />} />
             <Route path="/heart" element={<Placeholder title="Heart" />} />
             <Route path="/activity" element={<Placeholder title="Activity" />} />
-            <Route path="/workouts" element={<Placeholder title="Workouts" />} />
-            <Route path="/workouts/:id" element={<Placeholder title="Workout" />} />
+            <Route path="/workouts" element={<Workouts />} />
+            <Route path="/workouts/:id" element={<WorkoutDetail />} />
             <Route path="/trends" element={<Placeholder title="Trends" />} />
             <Route path="/settings" element={<Placeholder title="Settings" />} />
             <Route path="*" element={<Placeholder title="Not found" />} />
