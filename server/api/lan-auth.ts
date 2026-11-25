@@ -1,4 +1,7 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scrypt, scryptSync, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(scrypt) as (pw: string, salt: string, len: number) => Promise<Buffer>;
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { AppDeps } from '../app.js';
 import type { Db } from '../db/client.js';
@@ -10,6 +13,15 @@ const SESSION_DAYS = 30;
 export function hashPasscode(passcode: string): string {
   const salt = randomBytes(16).toString('hex');
   return `scrypt$${salt}$${scryptSync(passcode, salt, 32).toString('hex')}`;
+}
+
+/** Non-blocking variant used by the login route. */
+export async function verifyPasscodeAsync(passcode: string, stored: string): Promise<boolean> {
+  const [kind, salt, hash] = stored.split('$');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  const a = await scryptAsync(passcode, salt, 32);
+  const b = Buffer.from(hash, 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export function verifyPasscode(passcode: string, stored: string): boolean {
@@ -48,6 +60,7 @@ export function validSession(db: Db, token: string | undefined, now = Date.now()
 export function enableLan(db: Db, passcode: string): { ingestToken: string } {
   const ingestToken = getSettings(db).ingestToken ?? randomBytes(24).toString('base64url');
   updateSettings(db, { lanMode: true, passcodeHash: hashPasscode(passcode), ingestToken });
+  setState(db, 'auth.secret', randomBytes(32).toString('hex')); // new passcode signs out every existing session
   return { ingestToken };
 }
 
@@ -87,10 +100,19 @@ export function registerLanAuth(app: FastifyInstance, deps: AppDeps) {
     if (!validSession(db, cookieValue(req, COOKIE))) return reply.code(401).send({ error: 'Login required' });
   });
 
+  const failures = new Map<string, number[]>();
+  const WINDOW_MS = 15 * 60000; const MAX_FAILURES = 5;
   app.post('/api/login', async (req, reply) => {
+    const now = Date.now();
+    const recent = (failures.get(req.ip) ?? []).filter((t) => now - t < WINDOW_MS);
+    if (recent.length >= MAX_FAILURES) return reply.code(429).send({ error: 'Too many attempts. Try again in 15 minutes.' });
     const s = getSettings(db);
     const passcode = (req.body as { passcode?: string } | undefined)?.passcode ?? '';
-    if (!s.passcodeHash || !verifyPasscode(passcode, s.passcodeHash)) return reply.code(401).send({ error: 'Wrong passcode' });
+    if (!s.passcodeHash || !(await verifyPasscodeAsync(passcode, s.passcodeHash))) {
+      failures.set(req.ip, [...recent, now]);
+      return reply.code(401).send({ error: 'Wrong passcode' });
+    }
+    failures.delete(req.ip);
     return reply
       .header('set-cookie', `${COOKIE}=${makeSession(db)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86400}`)
       .send({ ok: true });

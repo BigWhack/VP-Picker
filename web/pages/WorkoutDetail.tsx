@@ -16,7 +16,7 @@ interface Detail {
   streams: Streams | null;
   weather: { tempC: number; humidity: number; windKmh: number; windFromDeg: number; precipMm: number } | null;
   gear: { name: string; kind: string; distanceKm: number; warn: boolean } | null;
-  similar: { id: string; name?: string; start: string; distanceM: number; paceS: number | null; avgHr: number | null; ef: number | null }[];
+  similar: { id: string; name?: string; start: string; distanceM: number | null; durationS: number; paceS: number | null; speedKmh: number | null; avgHr: number | null; ef: number | null; load: number | null }[];
   prs: { distanceM: number; timeS: number }[];
 }
 
@@ -86,26 +86,34 @@ function RunSection({ a, d }: { a: Record<string, unknown>; d: Detail }) {
           </div>
         </Card>
       )}
-      {d.similar.length > 0 && (
-        <Card title="Compared with similar runs" aside="±10% distance, last 90 days">
-          <div className="scroll-x">
-            <table className="compare">
-              <thead><tr><th>Run</th><th>Distance</th><th>Pace</th><th>HR</th><th>Efficiency</th></tr></thead>
-              <tbody>
-                <tr><td><strong>This run</strong></td><td>{fmtKm(d.workout.distanceM ?? 0)}</td><td style={{ fontWeight: 600 }}>{a.paceS ? fmtPace(a.paceS as number) : '—'}</td><td>{d.workout.avgHr ? Math.round(d.workout.avgHr) : '—'}</td><td>{a.ef ? (a.ef as number).toFixed(2) : '—'}</td></tr>
-                {d.similar.map((r) => (
-                  <tr key={r.id}>
-                    <td><Link to={`/workouts/${encodeURIComponent(r.id)}`}>{new Date(r.start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Link></td>
-                    <td className="muted-2">{fmtKm(r.distanceM)}</td><td className="muted-2">{r.paceS ? fmtPace(r.paceS) : '—'}</td>
-                    <td className="muted-2">{r.avgHr ? Math.round(r.avgHr) : '—'}</td><td className="muted-2">{r.ef ? r.ef.toFixed(2) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
     </>
+  );
+}
+
+function SimilarCard({ d }: { d: Detail }) {
+  const w = d.workout; const ride = w.sport === 'ride';
+  const moving = w.movingS ?? w.durationS;
+  const speed = (paceS: number | null, kmh: number | null) => (ride ? (kmh ? `${kmh.toFixed(1)} km/h` : '—') : paceS ? fmtPace(paceS) : '—');
+  const me = { paceS: w.distanceM ? moving / (w.distanceM / 1000) : null, kmh: w.distanceM ? (w.distanceM / 1000) / (moving / 3600) : null };
+  return (
+    <Card title="Compared with similar sessions" aside={w.distanceM ? '±10% distance, last 90 days' : '±15% duration, last 90 days'}>
+      <div className="scroll-x">
+        <table className="compare">
+          <thead><tr><th>Session</th>{w.distanceM ? <><th>Distance</th><th>{ride ? 'Speed' : 'Pace'}</th></> : <th>Time</th>}<th>HR</th><th>Load</th></tr></thead>
+          <tbody>
+            <tr><td><strong>This one</strong></td>{w.distanceM ? <><td>{fmtKm(w.distanceM)}</td><td style={{ fontWeight: 600 }}>{speed(me.paceS, me.kmh)}</td></> : <td>{fmtClock(w.durationS)}</td>}
+              <td>{w.avgHr ? Math.round(w.avgHr) : '—'}</td><td>{d.analysis ? Math.round(d.analysis.load) : '—'}</td></tr>
+            {d.similar.map((r) => (
+              <tr key={r.id}>
+                <td><Link to={`/workouts/${encodeURIComponent(r.id)}`}>{new Date(r.start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Link></td>
+                {w.distanceM ? <><td className="muted-2">{r.distanceM ? fmtKm(r.distanceM) : '—'}</td><td className="muted-2">{speed(r.paceS, r.speedKmh)}</td></> : <td className="muted-2">{fmtClock(r.durationS)}</td>}
+                <td className="muted-2">{r.avgHr ? Math.round(r.avgHr) : '—'}</td><td className="muted-2">{r.load !== null ? Math.round(r.load) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -178,6 +186,7 @@ export function WorkoutDetail() {
       {a?.kind === 'run' && <RunSection a={a} d={data} />}
       {a?.kind === 'ride' && <RideSection a={a} weather={data.weather} />}
       {a?.zones && <ZonesCard zones={a.zones} />}
+      {data.similar.length > 0 && <SimilarCard d={data} />}
     </>
   );
 }

@@ -5,7 +5,6 @@ import { CONFIG } from '../../shared/analytics-config.js';
 import { getExtras, getGear, getWorkout, listWorkouts, workoutStreams } from '../repo/workouts.js';
 import { getAnalysis, getPersonalRecords } from '../repo/derived.js';
 import { localDate, weekStart, addDays, dateRange } from '../analytics/dates.js';
-import { similarRuns } from '../analytics/run.js';
 import { recordsBoard } from '../analytics/records.js';
 import { todayOf, tzOf } from './common.js';
 
@@ -54,16 +53,20 @@ export function registerWorkoutRoutes(app: FastifyInstance, deps: AppDeps) {
     const analysis = getAnalysis<Record<string, unknown>>(db, id);
     const streams = workoutStreams(db, w);
     const gear = w.gearId ? getGear(db, w.gearId) : null;
-    let similar: unknown[] = [];
-    if (w.sport === 'run' && w.distanceM) {
-      const t = Date.parse(w.start);
-      const runs = listWorkouts(db, { sport: 'run', from: new Date(t - 90 * 86400000).toISOString(), to: w.start }).items
-        .filter((r) => r.id !== id && r.distanceM && Math.abs(r.distanceM - w.distanceM!) <= w.distanceM! * 0.1).map((r) => {
-        const a = getAnalysis<{ paceS: number | null; ef: number | null }>(db, r.id);
-        return { id: r.id, name: r.name, distanceM: r.distanceM!, start: r.start, paceS: a?.paceS ?? null, avgHr: r.avgHr ?? null, ef: a?.ef ?? null };
+    // Similar sessions: same sport in the 90 days before; within ±10% distance, or ±15% duration when there's no distance
+    const t = Date.parse(w.start);
+    const similar = listWorkouts(db, { sport: w.sport, from: new Date(t - 90 * 86400000).toISOString(), to: w.start }).items
+      .filter((r) => r.id !== id && (w.distanceM
+        ? !!r.distanceM && Math.abs(r.distanceM - w.distanceM) <= w.distanceM * 0.1
+        : Math.abs(r.durationS - w.durationS) <= w.durationS * 0.15))
+      .slice(0, 8)
+      .map((r) => {
+        const a = getAnalysis<{ paceS?: number | null; ef?: number | null; efficiency?: number | null; load?: number }>(db, r.id);
+        const moving = r.movingS ?? r.durationS;
+        return { id: r.id, name: r.name, start: r.start, distanceM: r.distanceM ?? null, durationS: r.durationS, avgHr: r.avgHr ?? null,
+          paceS: r.distanceM ? moving / (r.distanceM / 1000) : null, speedKmh: r.distanceM ? (r.distanceM / 1000) / (moving / 3600) : null,
+          ef: a?.ef ?? a?.efficiency ?? null, load: a?.load ?? null };
       });
-      similar = similarRuns({ distanceM: w.distanceM, start: w.start }, runs).slice(0, 8);
-    }
     const extras = w.stravaId ? getExtras(db, w.stravaId) : null;
     return {
       workout: w, sources: w.sources, analysis, streams: streams ? downsample(streams) : null, weather: w.weather ?? null,

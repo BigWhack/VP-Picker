@@ -29,7 +29,7 @@ export interface AppDeps {
 }
 
 export function buildApp(deps: AppDeps): FastifyInstance {
-  const app = Fastify({ logger: false, bodyLimit: 200 * 1024 * 1024 });
+  const app = Fastify({ logger: false, bodyLimit: 1024 * 1024 });
   if (deps.strava === undefined && deps.env?.STRAVA_CLIENT_ID && deps.env.STRAVA_CLIENT_SECRET && !deps.env.OFFLINE) {
     const client = new StravaClient(deps.db, { clientId: deps.env.STRAVA_CLIENT_ID, clientSecret: deps.env.STRAVA_CLIENT_SECRET }, deps.fetchFn ?? fetch, deps.now);
     deps.strava = createStravaSync(deps.db, client);

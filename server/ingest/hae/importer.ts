@@ -60,6 +60,16 @@ const hashFile = (file: string) => new Promise<string>((res, rej) => {
 /** path → "size:mtime" of files already imported in this process, so unchanged files aren't re-hashed every sync. */
 const seen = new Map<string, string>();
 
+/** True when any folder holds a JSON file not yet imported by this process (cheap: stat only, no reading). */
+export function hasNewHaeFiles(folders: string[]): boolean {
+  for (const folder of folders) {
+    for (const file of listJsonFiles(folder)) {
+      try { const st = statSync(file); if (seen.get(file) !== `${st.size}:${st.mtimeMs}`) return true; } catch { /* vanished */ }
+    }
+  }
+  return false;
+}
+
 /**
  * Import every new HAE JSON file in `folder`. Already-imported files (by content hash) are skipped.
  * With `deleteAfterImport` (the REST inbox) files are removed once imported; a raw copy is kept in rawDir.

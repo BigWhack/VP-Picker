@@ -13,9 +13,12 @@ export interface SyncContext {
   db: Db; dataDir: string; home: string; now?: () => Date;
   strava?: StravaSync | null;
   weather?: (() => Promise<number>) | null;
+  /** Import Health Auto Export files and recompute only (the 5-minute check between hourly syncs). */
+  haeOnly?: boolean;
 }
 
 export interface SyncRunResult {
+  haeOnly?: boolean;
   status: 'ok' | 'partial' | 'error';
   hae: Omit<HaeImportResult, 'affectedDates'> | null;
   strava: { newActivities: number; queued: number; processed: number } | null;
@@ -30,7 +33,7 @@ export async function runSyncJob(ctx: SyncContext): Promise<SyncRunResult> {
   const now = ctx.now ?? (() => new Date());
   const startedAt = now().toISOString();
   const runId = Number(db.prepare(`INSERT INTO sync_runs (started_at, status) VALUES (?, 'running')`).run(startedAt).lastInsertRowid);
-  const result: SyncRunResult = { status: 'ok', hae: null, strava: null, weather: null, recomputedDays: 0, errors: [] };
+  const result: SyncRunResult = { haeOnly: !!ctx.haeOnly, status: 'ok', hae: null, strava: null, weather: null, recomputedDays: 0, errors: [] };
   const affected: string[] = [];
 
   try {
@@ -47,7 +50,7 @@ export async function runSyncJob(ctx: SyncContext): Promise<SyncRunResult> {
     result.errors.push(...total.errors.map((e) => `hae: ${e}`));
   } catch (e) { result.errors.push(`hae: ${(e as Error).message}`); }
 
-  if (ctx.strava) {
+  if (ctx.strava && !ctx.haeOnly) {
     try {
       const r = await ctx.strava.poll();
       result.strava = { newActivities: r.newActivities, queued: r.queued, processed: r.processed };
@@ -64,7 +67,7 @@ export async function runSyncJob(ctx: SyncContext): Promise<SyncRunResult> {
     result.recomputedDays = (await recompute(db, { from, now: now() })).days;
   } catch (e) { recomputeOk = false; result.errors.push(`analytics: ${(e as Error).message}`); }
 
-  if (ctx.weather) {
+  if (ctx.weather && !ctx.haeOnly) {
     try { result.weather = await ctx.weather(); } catch (e) { result.errors.push(`weather: ${(e as Error).message}`); }
   }
 
@@ -75,8 +78,14 @@ export async function runSyncJob(ctx: SyncContext): Promise<SyncRunResult> {
 }
 
 export function lastRunAt(db: Db): Date | null {
-  const r = db.prepare(`SELECT MAX(started_at) AS m FROM sync_runs WHERE status != 'running'`).get() as { m: string | null };
+  const r = db.prepare(`SELECT MAX(started_at) AS m FROM sync_runs WHERE status != 'running' AND (counts_json IS NULL OR counts_json NOT LIKE '%"haeOnly":true%')`).get() as { m: string | null };
   return r.m ? new Date(r.m) : null;
+}
+
+/** Folders the importer reads: the configured/discovered HAE folder and the REST inbox. */
+export function haeFolders(ctx: { db: Db; dataDir: string; home: string }): string[] {
+  const s = getSettings(ctx.db);
+  return [s.haeFolder ?? discoverHaeFolder(ctx.home), join(ctx.dataDir, 'inbox')].filter((f): f is string => !!f && existsSync(f));
 }
 
 /** Wraps the job so the API and the scheduler share one in-flight guard. */
@@ -84,9 +93,9 @@ export class SyncController {
   running: Promise<SyncRunResult> | null = null;
   last: SyncRunResult | null = null;
   constructor(private ctx: () => SyncContext) {}
-  run(): Promise<SyncRunResult> {
+  run(opts: { haeOnly?: boolean } = {}): Promise<SyncRunResult> {
     if (this.running) return this.running;
-    this.running = runSyncJob(this.ctx()).then((r) => { this.last = r; return r; }).finally(() => { this.running = null; });
+    this.running = runSyncJob({ ...this.ctx(), haeOnly: opts.haeOnly }).then((r) => { this.last = r; return r; }).finally(() => { this.running = null; });
     return this.running;
   }
 }

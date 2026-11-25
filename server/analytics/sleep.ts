@@ -120,6 +120,11 @@ export function circularSdMin(localTimesHHmm: string[]): number {
   return Math.sqrt(-2 * Math.log(R)) * (1440 / (2 * Math.PI));
 }
 
+/** Sleep-schedule regularity: the average of the circular SDs of bedtimes and wake times (minutes). */
+export function regularitySdMin(beds: string[], wakes: string[]): number {
+  return (circularSdMin(beds) + circularSdMin(wakes)) / 2;
+}
+
 export function sleepScore(i: { asleepMin: number; needMin: number; efficiency: number; restorativeShare: number;
   baselineRestorativeShare: number | null; regularitySdMin: number | null }): { score: number; components: Record<string, number> } {
   const c = CONFIG.sleepScore;

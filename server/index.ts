@@ -6,7 +6,8 @@ import { buildApp, type AppDeps } from './app.js';
 import { loadEnv } from './config.js';
 import { openDb } from './db/client.js';
 import { startScheduler } from './sync/scheduler.js';
-import { SyncController, lastRunAt } from './sync/job.js';
+import { SyncController, lastRunAt, haeFolders } from './sync/job.js';
+import { hasNewHaeFiles } from './ingest/hae/importer.js';
 import { getSettings } from './repo/settings.js';
 
 const env = loadEnv();
@@ -28,4 +29,10 @@ if (existsSync(webDir)) {
 const lan = getSettings(db).lanMode;
 await app.listen({ port: env.PORT, host: lan ? '0.0.0.0' : env.HOST });
 console.log(`Health dashboard running at http://localhost:${env.PORT}${lan ? ' (home-network mode on)' : ''}`);
-if (process.env.NO_SCHEDULER !== '1') startScheduler(() => deps.sync!.run(), { lastRun: () => lastRunAt(db) });
+if (process.env.NO_SCHEDULER !== '1') {
+  startScheduler(() => deps.sync!.run(), { lastRun: () => lastRunAt(db) });
+  // Between hourly syncs, pick up new Health Auto Export files within 5 minutes of them landing.
+  setInterval(() => {
+    if (!deps.sync!.running && hasNewHaeFiles(haeFolders({ db, dataDir: env.DATA_DIR, home: deps.home }))) void deps.sync!.run({ haeOnly: true }).catch(() => undefined);
+  }, 5 * 60000);
+}

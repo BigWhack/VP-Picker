@@ -8,7 +8,7 @@ import { rebuildWorkouts } from '../merge/workouts.js';
 import { buildDailyRows } from './daily.js';
 import { computeBaseline } from './baseline.js';
 import { recoveryScore } from './recovery.js';
-import { sleepScore, sleepDebt, circularSdMin } from './sleep.js';
+import { sleepScore, sleepDebt, regularitySdMin } from './sleep.js';
 import { loadSeries, estimateHrMax } from './load.js';
 import { analyzeAllWorkouts } from './workouts.js';
 import { rebuildRecords } from './records.js';
@@ -20,6 +20,8 @@ export const BASELINE_KEYS = ['hrv', 'rhr', 'resp', 'tsb', 'asleepMin', 'efficie
   'standHours', 'recovery', 'sleepScore'] as const;
 
 export interface PhysioContext { hrRest: number; hrMax: number; sex: 'male' | 'female' }
+
+const hhmm = (min: number) => { const t = ((Math.round(min) % 1440) + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 
 /** Value used for the HRV baseline/recovery: the overnight mean when available, else the day's mean. */
 export const hrvOf = (r: DailyRow | undefined) => (r ? (r.hrvNight ?? r.hrv ?? null) : null);
@@ -97,8 +99,10 @@ export async function recompute(db: Db, opts: { from?: string | 'all'; to?: stri
     const debt = sleepDebt(lastNights, s.sleepNeedMin);
     const beds = dateRange(addDays(date, -CONFIG.sleep.regularityNights + 1), date).map((d) => byDate.get(d)?.bedtime)
       .filter((v): v is number => typeof v === 'number')
-      .map((m) => { const t = (18 * 60 + m) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; });
-    const regularity = beds.length >= 3 ? circularSdMin(beds) : null;
+      .map((m) => hhmm(18 * 60 + m));
+    const wakes = dateRange(addDays(date, -CONFIG.sleep.regularityNights + 1), date).map((d) => byDate.get(d)?.wake)
+      .filter((v): v is number => typeof v === 'number').map((m) => hhmm(m));
+    const regularity = beds.length >= 3 ? regularitySdMin(beds, wakes.length >= 3 ? wakes : beds) : null;
     let sleepRes: { score: number; components: Record<string, number> } | null = null;
     if (typeof row.asleepMin === 'number' && row.asleepMin > 0) {
       sleepRes = sleepScore({ asleepMin: row.asleepMin, needMin: s.sleepNeedMin, efficiency: row.efficiency ?? 0,
