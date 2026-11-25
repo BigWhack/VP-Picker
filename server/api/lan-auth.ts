@@ -55,6 +55,16 @@ export function isLoopback(ip: string): boolean {
   return ip === '::1' || ip === '::ffff:127.0.0.1' || ip.startsWith('127.');
 }
 
+const LOCAL_NAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+const hostnameOf = (hostHeader: string) => (hostHeader.startsWith('[') ? hostHeader.slice(0, hostHeader.indexOf(']') + 1) : hostHeader.split(':')[0]).toLowerCase();
+
+/** Hostnames this app answers to: loopback names, plus .local names and private IPs in home-network mode. Blocks DNS rebinding. */
+export function allowedHostname(hostname: string, lanMode: boolean): boolean {
+  if (LOCAL_NAMES.has(hostname)) return true;
+  if (!lanMode) return false;
+  return hostname.endsWith('.local') || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+(\.\d+)?$/.test(hostname);
+}
+
 const cookieValue = (req: FastifyRequest, name: string) =>
   (req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).find(([k]) => k === name)?.[1];
 
@@ -62,11 +72,18 @@ export function registerLanAuth(app: FastifyInstance, deps: AppDeps) {
   const { db } = deps;
 
   app.addHook('onRequest', async (req, reply) => {
+    const lanMode = getSettings(db).lanMode;
+    if (!allowedHostname(hostnameOf(req.headers.host ?? 'localhost'), lanMode)) return reply.code(403).send({ error: 'Unknown host' });
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin && req.url.split('?')[0] !== '/api/ingest/hae') {
+      let ok = false;
+      try { ok = allowedHostname(new URL(req.headers.origin).hostname.toLowerCase(), lanMode); } catch { ok = false; }
+      if (!ok) return reply.code(403).send({ error: 'Cross-site request refused' });
+    }
     if (isLoopback(req.ip)) return;
     const path = req.url.split('?')[0];
     if (!path.startsWith('/api') && !path.startsWith('/auth')) return; // web app assets, including the login page
     if (path === '/api/login' || path === '/api/ingest/hae' || path === '/api/health') return;
-    if (!getSettings(db).lanMode) return reply.code(403).send({ error: 'Only available on this Mac. Turn on home-network mode in Settings.' });
+    if (!lanMode) return reply.code(403).send({ error: 'Only available on this Mac. Turn on home-network mode in Settings.' });
     if (!validSession(db, cookieValue(req, COOKIE))) return reply.code(401).send({ error: 'Login required' });
   });
 

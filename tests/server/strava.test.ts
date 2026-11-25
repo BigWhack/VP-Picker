@@ -54,7 +54,7 @@ describe('Strava OAuth', () => {
     const app = buildApp({ db: testDb(), dataDir: tmp(), home: tmp(), env: { STRAVA_CLIENT_ID: '123', STRAVA_CLIENT_SECRET: 'x', PORT: 4321 } });
     const res = await app.inject({ method: 'GET', url: '/auth/strava/start' });
     expect(res.statusCode).toBe(302);
-    expect(res.headers.location).toBe('https://www.strava.com/oauth/authorize?client_id=123&redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fstrava%2Fcallback&response_type=code&approval_prompt=auto&scope=read%2Cactivity%3Aread_all%2Cprofile%3Aread_all');
+    expect(res.headers.location).toMatch(/^https:\/\/www\.strava\.com\/oauth\/authorize\?client_id=123&redirect_uri=http%3A%2F%2Flocalhost%3A4321%2Fauth%2Fstrava%2Fcallback&response_type=code&approval_prompt=auto&scope=read%2Cactivity%3Aread_all%2Cprofile%3Aread_all&state=[0-9a-f]{32}$/);
   });
 
   it('exchanges the code, stores tokens and redirects to settings', async () => {
@@ -62,7 +62,9 @@ describe('Strava OAuth', () => {
     const { fn } = mockFetch((url) => (url.pathname === '/oauth/token'
       ? json({ access_token: 'a1', refresh_token: 'r1', expires_at: nowSec + 21600, athlete: { id: 7, firstname: 'J' } }) : undefined));
     const app = buildApp({ db, dataDir: tmp(), home: tmp(), env: { STRAVA_CLIENT_ID: '123', STRAVA_CLIENT_SECRET: 'x' }, fetchFn: fn });
-    const res = await app.inject({ method: 'GET', url: '/auth/strava/callback?code=abc&scope=read,activity:read_all,profile:read_all' });
+    const start = await app.inject({ method: 'GET', url: '/auth/strava/start' });
+    const state = new URL(String(start.headers.location)).searchParams.get('state');
+    const res = await app.inject({ method: 'GET', url: `/auth/strava/callback?code=abc&scope=read,activity:read_all,profile:read_all&state=${state}` });
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe('/settings?strava=connected');
     expect(getTokens(db)).toMatchObject({ access: 'a1', refresh: 'r1' });

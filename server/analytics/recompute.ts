@@ -58,7 +58,7 @@ export async function recompute(db: Db, opts: { from?: string | 'all'; to?: stri
 
   // Training load over the full workout history
   const ctx = physioContext(db, s, rows.slice(-W), now);
-  const loads = analyzeAllWorkouts(db, ctx, s);
+  const { loads } = analyzeAllWorkouts(db, ctx, s);
   const perDay = new Map<string, number>();
   for (const w of listWorkouts(db).items) {
     const d = localDate(w.start, tz);

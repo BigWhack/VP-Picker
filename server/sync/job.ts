@@ -35,10 +35,11 @@ export async function runSyncJob(ctx: SyncContext): Promise<SyncRunResult> {
 
   try {
     const s = getSettings(db);
-    const folders = [s.haeFolder ?? discoverHaeFolder(ctx.home), join(ctx.dataDir, 'inbox')].filter((f): f is string => !!f && existsSync(f));
+    const inbox = join(ctx.dataDir, 'inbox');
+    const folders = [s.haeFolder ?? discoverHaeFolder(ctx.home), inbox].filter((f): f is string => !!f && existsSync(f));
     const total = { files: 0, samples: 0, sleep: 0, workouts: 0, errors: [] as string[] };
     for (const f of folders) {
-      const r = await importHaeFolder(db, f, join(ctx.dataDir, 'raw'));
+      const r = await importHaeFolder(db, f, join(ctx.dataDir, 'raw'), { deleteAfterImport: f === inbox });
       total.files += r.files; total.samples += r.samples; total.sleep += r.sleep; total.workouts += r.workouts;
       total.errors.push(...r.errors); affected.push(...r.affectedDates);
     }

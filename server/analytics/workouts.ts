@@ -8,7 +8,7 @@ import type { PhysioContext } from './recompute.js';
 import { analyzeRide, type RideAnalysis } from './ride.js';
 
 export interface GenericAnalysis { kind: 'generic'; zones: ReturnType<typeof zonesFor>; load: number; paceS: number | null }
-export type AnyAnalysis = (RunAnalysis | RideAnalysis | GenericAnalysis | { kind: string; load: number; [k: string]: unknown }) & { sig?: string };
+export type AnyAnalysis = (RunAnalysis | RideAnalysis | GenericAnalysis | { kind: string; load: number; [k: string]: unknown }) & { sig?: string; usedHrRest?: number; usedHrMax?: number };
 
 type Analyzer = (db: Db, w: MergedWorkout, ctx: AnalysisContext) => AnyAnalysis;
 const extra: Record<string, Analyzer> = {};
@@ -29,19 +29,21 @@ export function analyzeWorkout(db: Db, w: MergedWorkout, ctx: AnalysisContext): 
   return { kind: 'generic', zones: zonesFor(streams, ctx), load: loadFor(w, streams, ctx), paceS };
 }
 
-/** Analyse every workout whose inputs changed since the last run; returns load per workout id. */
-export function analyzeAllWorkouts(db: Db, physio: PhysioContext, s: Settings): Map<string, number> {
+/** Analyse every workout whose inputs changed since the last run (resting/max HR compared to the nearest bpm). */
+export function analyzeAllWorkouts(db: Db, physio: PhysioContext, s: Settings): { loads: Map<string, number>; analysed: number } {
   const ctx: AnalysisContext = { ...physio, zoneModel: s.zoneModel, ftp: s.ftp };
-  const loads = new Map<string, number>();
+  const loads = new Map<string, number>(); let analysed = 0;
   for (const w of listWorkouts(db).items) {
     const streamsKey = db.prepare(`SELECT COUNT(*) AS c FROM record_streams WHERE (source = 'apple' AND source_id = ?) OR (source = 'strava' AND source_id = ?)`)
       .get(w.appleId ?? '', w.stravaId ?? '') as { c: number };
-    const sig = `v3|${w.weather ? 'wx' : ''}|${w.appleId}|${w.stravaId}|${streamsKey.c}|${w.durationS}|${ctx.hrRest}|${ctx.hrMax}|${ctx.sex}|${ctx.zoneModel}|${s.ftp ?? ''}`;
+    const sig = `v3|${w.weather ? 'wx' : ''}|${w.appleId}|${w.stravaId}|${streamsKey.c}|${w.durationS}|${ctx.sex}|${ctx.zoneModel}|${s.ftp ?? ''}`;
     const prev = getAnalysis<AnyAnalysis>(db, w.id);
-    if (prev && prev.sig === sig) { loads.set(w.id, prev.load); continue; }
-    const a = { ...analyzeWorkout(db, w, ctx), sig };
+    const physioSame = prev && Math.abs((prev.usedHrRest ?? -99) - ctx.hrRest) < 1 && Math.abs((prev.usedHrMax ?? -99) - ctx.hrMax) < 1;
+    if (prev && prev.sig === sig && physioSame) { loads.set(w.id, prev.load); continue; }
+    const a = { ...analyzeWorkout(db, w, ctx), sig, usedHrRest: ctx.hrRest, usedHrMax: ctx.hrMax };
     saveAnalysis(db, w.id, a);
     loads.set(w.id, a.load);
+    analysed++;
   }
-  return loads;
+  return { loads, analysed };
 }

@@ -16,12 +16,21 @@ export function trimpFromAverage(avgHr: number, durationS: number, hrRest: numbe
   return (durationS / 60) * perMinute(avgHr, hrRest, hrMax, sex);
 }
 
-/** Banister TRIMP integrated over an HR stream (t in seconds). */
+/** Largest gap (s) between samples that still counts as continuous: 3× the typical spacing, at least 30 s. */
+export function gapCap(t: number[]): number {
+  const d: number[] = [];
+  for (let i = 1; i < t.length; i++) if (t[i] > t[i - 1]) d.push(t[i] - t[i - 1]);
+  if (!d.length) return 30;
+  d.sort((a, b) => a - b);
+  return Math.max(30, 3 * d[Math.floor(d.length / 2)]);
+}
+
+/** Banister TRIMP integrated over an HR stream (t in seconds). Gaps longer than gapCap (pauses) are skipped. */
 export function trimpFromStream(t: number[], hr: number[], hrRest: number, hrMax: number, sex: Sex = 'male'): number {
-  let total = 0;
+  let total = 0; const cap = gapCap(t);
   for (let i = 1; i < t.length; i++) {
-    const dt = Math.min(t[i] - t[i - 1], 30); // ignore pauses longer than 30 s
-    if (dt <= 0) continue;
+    const dt = t[i] - t[i - 1];
+    if (dt <= 0 || dt > cap) continue;
     total += (dt / 60) * perMinute(hr[i - 1], hrRest, hrMax, sex);
   }
   return total;

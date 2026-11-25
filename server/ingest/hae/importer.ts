@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, createReadStream, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Db } from '../../db/client.js';
 import type { Sample, SleepSegment } from '../../../shared/types.js';
@@ -54,20 +54,39 @@ async function importFile(db: Db, file: string, tz: string, dates: Set<string>) 
   return counts;
 }
 
-/** Import every new HAE JSON file in `folder`. Already-imported files (by content hash) are skipped. */
-export async function importHaeFolder(db: Db, folder: string, rawDir: string): Promise<HaeImportResult> {
+const hashFile = (file: string) => new Promise<string>((res, rej) => {
+  const h = createHash('sha256');
+  createReadStream(file).on('data', (c) => h.update(c)).on('end', () => res(h.digest('hex'))).on('error', rej);
+});
+
+/** path → "size:mtime" of files already imported in this process, so unchanged files aren't re-hashed every sync. */
+const seen = new Map<string, string>();
+
+/**
+ * Import every new HAE JSON file in `folder`. Already-imported files (by content hash) are skipped.
+ * With `deleteAfterImport` (the REST inbox) files are removed once imported; a raw copy is kept in rawDir.
+ */
+export async function importHaeFolder(db: Db, folder: string, rawDir: string, opts: { deleteAfterImport?: boolean } = {}): Promise<HaeImportResult> {
   const tz = getSettings(db).tz;
   const result: HaeImportResult = { files: 0, samples: 0, sleep: 0, workouts: 0, errors: [], affectedDates: [] };
   const dates = new Set<string>();
   mkdirSync(join(rawDir, 'hae'), { recursive: true });
   for (const file of listJsonFiles(folder)) {
-    let hash: string;
-    try { hash = createHash('sha256').update(readFileSync(file)).digest('hex'); } catch { continue; }
-    if (isImported(db, hash)) continue;
+    let hash: string; let stamp: string;
+    try { const st = statSync(file); stamp = `${st.size}:${st.mtimeMs}`; } catch { continue; }
+    if (seen.get(file) === stamp) continue;
+    try { hash = await hashFile(file); } catch { continue; }
+    if (isImported(db, hash)) {
+      seen.set(file, stamp);
+      if (opts.deleteAfterImport) try { unlinkSync(file); } catch { /* already gone */ }
+      continue;
+    }
     try {
       const c = await importFile(db, file, tz, dates);
       copyFileSync(file, join(rawDir, 'hae', `${hash}.json`));
       recordImport(db, { source: 'hae', path: file, hash, status: 'ok' });
+      seen.set(file, stamp);
+      if (opts.deleteAfterImport) try { unlinkSync(file); } catch { /* already gone */ }
       result.files++; result.samples += c.samples; result.sleep += c.sleep; result.workouts += c.workouts;
     } catch (e) {
       const msg = `${file}: ${(e as Error).message}`;

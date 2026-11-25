@@ -1,3 +1,4 @@
+import { gapCap } from './load.js';
 import type { Streams } from '../../shared/types.js';
 
 export const finite = (xs: (number | null | undefined)[]) => xs.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
@@ -19,10 +20,10 @@ export function gradeSeries(s: Streams): number[] | null {
 /** Time-weighted mean of a stream over samples [from, to). */
 export function timeMean(t: number[], v: number[] | undefined, from = 0, to = t.length): number | null {
   if (!v) return null;
-  let sum = 0; let w = 0;
+  let sum = 0; let w = 0; const cap = gapCap(t);
   for (let i = Math.max(1, from + 1); i < to; i++) {
-    const dt = Math.min(t[i] - t[i - 1], 30);
-    if (dt <= 0 || !Number.isFinite(v[i - 1])) continue;
+    const dt = t[i] - t[i - 1];
+    if (dt <= 0 || dt > cap || !Number.isFinite(v[i - 1])) continue;
     sum += v[i - 1] * dt; w += dt;
   }
   return w > 0 ? sum / w : null;
