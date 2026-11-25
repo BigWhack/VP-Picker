@@ -135,7 +135,8 @@ describe('Strava sync', () => {
     const second = mockFetch(stravaApi());
     const r2 = await createStravaSync(db, new StravaClient(db, creds, second.fn, () => NOW)).poll();
     expect(r2.processed).toBe(1);
-    expect(second.calls).toContain('GET /api/v3/activities/1002');
+    expect(second.calls).toContain('GET /api/v3/activities/1002/streams');
+    expect(second.calls).not.toContain('GET /api/v3/activities/1002'); // detail was already saved
     expect(queueSize(db)).toBe(0);
   });
 

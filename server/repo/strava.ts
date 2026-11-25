@@ -24,9 +24,15 @@ export function queueAdd(db: Db, ids: string[], now = new Date()): void {
   db.transaction(() => { for (const id of ids) stmt.run(id, now.toISOString()); })();
 }
 
-export function queueNext(db: Db): string | null {
-  const r = db.prepare(`SELECT activity_id FROM strava_queue WHERE attempts < 5 ORDER BY added_at, activity_id LIMIT 1`).get() as { activity_id: string } | undefined;
-  return r?.activity_id ?? null;
+/** Next queued activity, skipping ids already tried in this pass. */
+export function queueNext(db: Db, exclude: Set<string> = new Set()): { id: string; step: string } | null {
+  const rows = db.prepare(`SELECT activity_id, step FROM strava_queue WHERE attempts < 5 ORDER BY added_at, activity_id`).all() as { activity_id: string; step: string }[];
+  const r = rows.find((x) => !exclude.has(x.activity_id));
+  return r ? { id: r.activity_id, step: r.step } : null;
+}
+
+export function queueSetStep(db: Db, id: string, step: string): void {
+  db.prepare(`UPDATE strava_queue SET step = ? WHERE activity_id = ?`).run(step, id);
 }
 
 export function queueDone(db: Db, id: string): void { db.prepare(`DELETE FROM strava_queue WHERE activity_id = ?`).run(id); }

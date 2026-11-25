@@ -24,33 +24,31 @@ async function importFile(db: Db, file: string, tz: string, dates: Set<string>) 
   let samples: Sample[] = []; let sleep: SleepSegment[] = [];
   const counts = { samples: 0, sleep: 0, workouts: 0 };
   const flush = () => {
-    counts.samples += upsertSamples(db, samples);
-    counts.sleep += upsertSleep(db, sleep);
+    db.transaction(() => {
+      counts.samples += upsertSamples(db, samples);
+      counts.sleep += upsertSleep(db, sleep);
+    })();
     samples = []; sleep = [];
   };
-  db.exec('BEGIN');
-  try {
-    for await (const item of parseHaeFile(file)) {
-      if (item.kind === 'metric') {
-        const n = normalizeMetric(item.name, item.units, item.point);
-        samples.push(...n.samples); sleep.push(...n.sleep);
-        for (const s of n.samples) dates.add(localDate(s.start, tz));
-        for (const s of n.sleep) dates.add(localDate(s.end, tz));
-      } else {
-        const n = normalizeWorkout(item.w);
-        upsertRecord(db, n.record, item.w.route ? { ...item.w, route: undefined, heartRateData: undefined } : item.w, n.streams);
-        samples.push(...n.samples);
-        dates.add(localDate(n.record.start, tz));
-        counts.workouts++;
-      }
-      if (samples.length + sleep.length >= BATCH) flush();
+  // Each batch is written in its own short synchronous transaction, so no transaction stays open across an
+  // await (which would swallow unrelated writes made meanwhile). Writes are idempotent upserts, so a file that
+  // fails part-way is simply re-imported on a later scan.
+  for await (const item of parseHaeFile(file)) {
+    if (item.kind === 'metric') {
+      const n = normalizeMetric(item.name, item.units, item.point);
+      samples.push(...n.samples); sleep.push(...n.sleep);
+      for (const s of n.samples) dates.add(localDate(s.start, tz));
+      for (const s of n.sleep) dates.add(localDate(s.end, tz));
+    } else {
+      const n = normalizeWorkout(item.w);
+      upsertRecord(db, n.record, item.w.route ? { ...item.w, route: undefined, heartRateData: undefined } : item.w, n.streams);
+      samples.push(...n.samples);
+      dates.add(localDate(n.record.start, tz));
+      counts.workouts++;
     }
-    flush();
-    db.exec('COMMIT');
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
+    if (samples.length + sleep.length >= BATCH) flush();
   }
+  flush();
   return counts;
 }
 

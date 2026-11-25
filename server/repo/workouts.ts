@@ -151,3 +151,22 @@ export function getExtras(db: Db, stravaId: string): { laps: unknown; splits: un
 }
 
 const j = (v: unknown) => (v === undefined ? null : JSON.stringify(v));
+
+/** Refresh summary fields of an existing Strava record (rename, sport or gear change) without touching detail data. */
+export function updateStravaSummary(db: Db, r: WorkoutRecord): void {
+  db.prepare(`UPDATE workout_records SET name = ?, sport = ?, gear_id = ?, distance_m = COALESCE(?, distance_m), duration_s = ?, moving_s = COALESCE(?, moving_s),
+    "end" = ?, elev_gain_m = COALESCE(?, elev_gain_m) WHERE source = 'strava' AND source_id = ?`)
+    .run(r.name ?? null, r.sport, r.gearId ?? null, r.distanceM ?? null, r.durationS, r.movingS ?? null, r.end, r.elevGainM ?? null, r.sourceId);
+}
+
+/** Remove a source record with its streams and extras (e.g. an activity deleted on Strava). */
+export function deleteRecord(db: Db, source: 'apple' | 'strava', id: string): void {
+  db.transaction(() => {
+    db.prepare(`DELETE FROM workout_records WHERE source = ? AND source_id = ?`).run(source, id);
+    db.prepare(`DELETE FROM record_streams WHERE source = ? AND source_id = ?`).run(source, id);
+    if (source === 'strava') {
+      db.prepare(`DELETE FROM workout_extras WHERE strava_id = ?`).run(id);
+      db.prepare(`DELETE FROM strava_queue WHERE activity_id = ?`).run(id);
+    }
+  })();
+}

@@ -6,6 +6,8 @@ import { tokenRequest } from './oauth.js';
 export class RateLimitedError extends Error { constructor(msg = 'Strava rate limit reached; will continue next sync') { super(msg); } }
 export class StravaAuthError extends Error { constructor(msg = 'Strava access was revoked or expired — reconnect Strava in Settings.') { super(msg); } }
 
+export class StravaHttpError extends Error { constructor(public status: number, path: string) { super(`Strava ${path}: ${status}`); } }
+
 export interface StravaCreds { clientId: string; clientSecret: string }
 
 /** Thin Strava API client: refreshes tokens, tracks rate-limit usage and stops before the configured budget. */
@@ -14,6 +16,7 @@ export class StravaClient {
   constructor(private db: Db, private creds: StravaCreds, private fetchFn: typeof fetch = fetch, private now: () => Date = () => new Date()) {}
 
   connected(): boolean { return !!getTokens(this.db); }
+  nowDate(): Date { return this.now(); }
 
   private resetWindows() {
     const n = this.now();
@@ -57,7 +60,7 @@ export class StravaClient {
     this.recordUsage(res);
     if (res.status === 429) throw new RateLimitedError();
     if (res.status === 401) { deleteTokens(this.db); throw new StravaAuthError(); }
-    if (!res.ok) throw new Error(`Strava ${path}: ${res.status}`);
+    if (!res.ok) throw new StravaHttpError(res.status, path);
     return (await res.json()) as T;
   }
 }
