@@ -3,13 +3,14 @@ import type { Baseline, DailyRow, Settings } from '../../shared/types.js';
 import { CONFIG } from '../../shared/analytics-config.js';
 import { getSettings } from '../repo/settings.js';
 import { saveDaily, saveBaselines, saveScores, saveLoad, saveInsights, getDaily, type ScoreRow } from '../repo/derived.js';
-import { listWorkouts, type MergedWorkout } from '../repo/workouts.js';
+import { listWorkouts } from '../repo/workouts.js';
 import { rebuildWorkouts } from '../merge/workouts.js';
 import { buildDailyRows } from './daily.js';
 import { computeBaseline } from './baseline.js';
 import { recoveryScore } from './recovery.js';
 import { sleepScore, sleepDebt, circularSdMin } from './sleep.js';
-import { loadSeries, estimateHrMax, trimpFromAverage } from './load.js';
+import { loadSeries, estimateHrMax } from './load.js';
+import { analyzeAllWorkouts } from './workouts.js';
 import { computeFlags, headline } from './insights.js';
 import { addDays, dateRange, localDate } from './dates.js';
 
@@ -18,15 +19,6 @@ export const BASELINE_KEYS = ['hrv', 'rhr', 'resp', 'tsb', 'asleepMin', 'efficie
   'standHours', 'recovery', 'sleepScore'] as const;
 
 export interface PhysioContext { hrRest: number; hrMax: number; sex: 'male' | 'female' }
-
-export type WorkoutLoadFn = (db: Db, w: MergedWorkout, ctx: PhysioContext) => number;
-
-export const averageLoad: WorkoutLoadFn = (_db, w, ctx) =>
-  w.avgHr ? trimpFromAverage(w.avgHr, w.durationS, ctx.hrRest, ctx.hrMax, ctx.sex) : 0;
-
-let workoutLoad: WorkoutLoadFn = averageLoad;
-/** Lets workout analytics (Task 18) supply stream-based load without an import cycle. */
-export function setWorkoutLoadFn(fn: WorkoutLoadFn): void { workoutLoad = fn; }
 
 /** Value used for the HRV baseline/recovery: the overnight mean when available, else the day's mean. */
 export const hrvOf = (r: DailyRow | undefined) => (r ? (r.hrvNight ?? r.hrv ?? null) : null);
@@ -65,11 +57,11 @@ export async function recompute(db: Db, opts: { from?: string | 'all'; to?: stri
 
   // Training load over the full workout history
   const ctx = physioContext(db, s, rows.slice(-W), now);
-  const all = listWorkouts(db).items;
+  const loads = analyzeAllWorkouts(db, ctx, s);
   const perDay = new Map<string, number>();
-  for (const w of all) {
+  for (const w of listWorkouts(db).items) {
     const d = localDate(w.start, tz);
-    perDay.set(d, (perDay.get(d) ?? 0) + workoutLoad(db, w, ctx));
+    perDay.set(d, (perDay.get(d) ?? 0) + (loads.get(w.id) ?? 0));
   }
   const series = loadSeries([...perDay.entries()].map(([date, load]) => ({ date, load })), today);
   saveLoad(db, series.map((p) => ({ ...p })));
