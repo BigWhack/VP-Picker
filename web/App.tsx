@@ -7,6 +7,7 @@ import { Workouts } from './pages/Workouts';
 import { Sleep } from './pages/Sleep';
 import { Heart } from './pages/Heart';
 import { Activity } from './pages/Activity';
+import { Trends } from './pages/Trends';
 import { WorkoutDetail } from './pages/WorkoutDetail';
 import './theme.css';
 
@@ -43,7 +44,7 @@ export function App() {
             <Route path="/activity" element={<Activity />} />
             <Route path="/workouts" element={<Workouts />} />
             <Route path="/workouts/:id" element={<WorkoutDetail />} />
-            <Route path="/trends" element={<Placeholder title="Trends" />} />
+            <Route path="/trends" element={<Trends />} />
             <Route path="/settings" element={<Placeholder title="Settings" />} />
             <Route path="*" element={<Placeholder title="Not found" />} />
           </Routes>
