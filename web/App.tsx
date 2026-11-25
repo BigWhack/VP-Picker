@@ -5,6 +5,8 @@ import { SyncStatus } from './components/SyncStatus';
 import { Today } from './pages/Today';
 import { Workouts } from './pages/Workouts';
 import { Sleep } from './pages/Sleep';
+import { Heart } from './pages/Heart';
+import { Activity } from './pages/Activity';
 import { WorkoutDetail } from './pages/WorkoutDetail';
 import './theme.css';
 
@@ -37,8 +39,8 @@ export function App() {
           <Routes>
             <Route path="/" element={<Today />} />
             <Route path="/sleep" element={<Sleep />} />
-            <Route path="/heart" element={<Placeholder title="Heart" />} />
-            <Route path="/activity" element={<Placeholder title="Activity" />} />
+            <Route path="/heart" element={<Heart />} />
+            <Route path="/activity" element={<Activity />} />
             <Route path="/workouts" element={<Workouts />} />
             <Route path="/workouts/:id" element={<WorkoutDetail />} />
             <Route path="/trends" element={<Placeholder title="Trends" />} />

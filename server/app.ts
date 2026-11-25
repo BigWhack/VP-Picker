@@ -6,6 +6,7 @@ import { registerTodayRoutes } from './api/today.js';
 import { registerStravaAuthRoutes } from './api/strava-auth.js';
 import { registerWorkoutRoutes } from './api/workouts.js';
 import { registerSleepRoutes } from './api/sleep.js';
+import { registerHeartActivityRoutes } from './api/heart-activity.js';
 import { StravaClient } from './ingest/strava/client.js';
 import { createStravaSync } from './ingest/strava/sync.js';
 import { enrichWeather } from './ingest/weather.js';
@@ -41,5 +42,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerStravaAuthRoutes(app, deps);
   registerWorkoutRoutes(app, deps);
   registerSleepRoutes(app, deps);
+  registerHeartActivityRoutes(app, deps);
   return app;
 }
