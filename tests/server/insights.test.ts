@@ -29,7 +29,7 @@ describe('headline', () => {
 });
 
 describe('flags', () => {
-  const days = (rhr: number[]): DailyRow[] => rhr.map((v, i) => ({ date: `2026-11-${10 + i}`, rhr: v, resp: 14, hrvNight: 50 }));
+  const days = (rhr: number[]): DailyRow[] => rhr.map((v, i) => ({ date: `2026-11-${10 + i}`, rhr: v, resp: 14, hrvNight: 50 })) as unknown as DailyRow[];
   const base = { rhr: B(52), resp: B(14, 1), hrv: B(50, 6) };
   it('fires rhr_elevated only after two elevated days', () => {
     expect(computeFlags(days([52, 58, 58]), base, 0, 1).map((f) => f.kind)).toContain('rhr_elevated');
@@ -40,7 +40,7 @@ describe('flags', () => {
     expect(computeFlags(days([52]), base, 300, 1).map((f) => f.kind)).not.toContain('sleep_debt');
   });
   it('fires ramping, resp and hrv flags', () => {
-    const d: DailyRow[] = [40, 40, 40].map((h, i) => ({ date: `2026-11-1${i}`, rhr: 52, resp: i === 2 ? 16 : 14, hrvNight: h }));
+    const d: DailyRow[] = [40, 40, 40].map((h, i) => ({ date: `2026-11-1${i}`, rhr: 52, resp: i === 2 ? 16 : 14, hrvNight: h })) as unknown as DailyRow[];
     const kinds = computeFlags(d, base, 0, 1.6).map((f) => f.kind);
     expect(kinds).toEqual(expect.arrayContaining(['ramping', 'resp_elevated', 'hrv_low']));
   });
