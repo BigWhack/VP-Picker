@@ -7,6 +7,7 @@ import { loadEnv } from './config.js';
 import { openDb } from './db/client.js';
 import { startScheduler } from './sync/scheduler.js';
 import { SyncController, lastRunAt } from './sync/job.js';
+import { getSettings } from './repo/settings.js';
 
 const env = loadEnv();
 mkdirSync(env.DATA_DIR, { recursive: true });
@@ -24,6 +25,7 @@ if (existsSync(webDir)) {
   });
 }
 
-await app.listen({ port: env.PORT, host: deps.listenHost ?? env.HOST });
-console.log(`Health dashboard running at http://localhost:${env.PORT}`);
+const lan = getSettings(db).lanMode;
+await app.listen({ port: env.PORT, host: lan ? '0.0.0.0' : env.HOST });
+console.log(`Health dashboard running at http://localhost:${env.PORT}${lan ? ' (home-network mode on)' : ''}`);
 if (process.env.NO_SCHEDULER !== '1') startScheduler(() => deps.sync!.run(), { lastRun: () => lastRunAt(db) });

@@ -93,6 +93,8 @@ export function Settings() {
         {msg && <span className="small muted-2" role="status">{msg}</span>}
       </div>
 
+      <LanCard lanMode={data.settings.lanMode} ingestToken={data.settings.ingestToken} onChange={invalidate} />
+
       <Card title="How the scores work">
         <p className="small muted-2" style={{ margin: 0 }}>
           <strong>Recovery (0–100)</strong> compares last night with your own last 30 days: HRV {data.config.recoveryWeights.hrv}%, resting heart rate {data.config.recoveryWeights.rhr}%, sleep vs need {data.config.recoveryWeights.sleep}%, breathing rate {data.config.recoveryWeights.resp}%, training form {data.config.recoveryWeights.form}%.
@@ -113,5 +115,35 @@ export function Settings() {
       </Card>
       <p className="small muted">Not a medical device. For personal insight only. Recovery, sleep and fitness numbers are estimates to help you notice trends, not diagnoses.</p>
     </>
+  );
+}
+
+function LanCard({ lanMode, ingestToken, onChange }: { lanMode: boolean; ingestToken: string | null; onChange: () => void }) {
+  const [passcode, setPasscode] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const toggle = async (enabled: boolean) => {
+    try { await postApi('/api/lan', { enabled, passcode }); setMsg('Saved. Restart the app (npm start) for this to take effect.'); onChange(); }
+    catch (e) { setMsg((e as Error).message); }
+  };
+  return (
+    <Card title="Home-network mode" aside={lanMode ? 'On' : 'Off'}>
+      <p className="small muted-2" style={{ margin: 0 }}>
+        Lets your phone open the dashboard at http://&lt;your-mac-name&gt;.local:4321 on the same Wi-Fi, with a passcode, and lets Health Auto Export push data
+        straight to the Mac (REST API automation) instead of via iCloud Drive. Off by default: the dashboard is only reachable from this Mac.
+      </p>
+      {!lanMode && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <label className="field">Choose a passcode (6+ characters)<input type="password" value={passcode} onChange={(e) => setPasscode(e.target.value)} /></label>
+          <button type="button" className="btn" disabled={passcode.length < 6} onClick={() => toggle(true)}>Turn on</button>
+        </div>
+      )}
+      {lanMode && (
+        <>
+          {ingestToken && <p className="small" style={{ margin: 0 }}>Health Auto Export REST URL: <code>http://&lt;your-mac-name&gt;.local:4321/api/ingest/hae</code> · header <code>Authorization: Bearer {ingestToken}</code></p>}
+          <div><button type="button" className="btn" onClick={() => toggle(false)}>Turn off</button></div>
+        </>
+      )}
+      {msg && <p className="small muted-2" role="status" style={{ margin: 0 }}>{msg}</p>}
+    </Card>
   );
 }

@@ -9,6 +9,8 @@ import { registerSleepRoutes } from './api/sleep.js';
 import { registerHeartActivityRoutes } from './api/heart-activity.js';
 import { registerTrendRoutes } from './api/trends.js';
 import { registerSettingsRoutes } from './api/settings.js';
+import { registerLanAuth } from './api/lan-auth.js';
+import { registerIngestRoutes } from './api/ingest.js';
 import { StravaClient } from './ingest/strava/client.js';
 import { createStravaSync } from './ingest/strava/sync.js';
 import { enrichWeather } from './ingest/weather.js';
@@ -38,7 +40,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   if (!deps.sync) {
     deps.sync = new SyncController(() => ({ db: deps.db, dataDir: deps.dataDir, home: deps.home, now: deps.now, strava: deps.strava ?? null, weather: deps.weather ?? null }));
   }
+  registerLanAuth(app, deps);
   app.get('/api/health', async () => ({ ok: true }));
+  registerIngestRoutes(app, deps);
   registerSyncRoutes(app, deps);
   registerTodayRoutes(app, deps);
   registerStravaAuthRoutes(app, deps);

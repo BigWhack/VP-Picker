@@ -11,6 +11,7 @@ import { Trends } from './pages/Trends';
 import { Settings } from './pages/Settings';
 import { Setup, type SetupData } from './pages/Setup';
 import { useApi } from './api';
+import { Login } from './pages/Login';
 import { WorkoutDetail } from './pages/WorkoutDetail';
 import './theme.css';
 
@@ -42,6 +43,7 @@ function Home() {
 }
 
 export function App() {
+  if (window.location.pathname === '/login') return <QueryClientProvider client={queryClient}><Login /></QueryClientProvider>;
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
