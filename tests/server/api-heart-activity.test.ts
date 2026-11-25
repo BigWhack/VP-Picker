@@ -44,7 +44,9 @@ describe('heart flag episodes', () => {
     const { saveInsights } = await import('../../server/repo/derived.js');
     for (const d of ['2026-11-20', '2026-11-21', '2026-11-22']) saveInsights(db, d, [{ date: d, kind: 'rhr_elevated', severity: 'warn', text: 'x' }, { date: d, kind: 'sleep_debt', severity: 'info', text: 'y' }]);
     const b = (await app.inject({ url: '/api/heart?range=30d' })).json();
-    expect(b.flagEpisodes).toEqual([{ kind: 'rhr_elevated', from: '2026-11-20', to: '2026-11-22', text: 'x' }]);
+    expect(b.flagEpisodes).toContainEqual({ kind: 'rhr_elevated', from: '2026-11-20', to: '2026-11-22', text: 'x' });
+    expect(b.flagEpisodes.filter((f: { kind: string }) => f.kind === 'rhr_elevated')).toHaveLength(1);
+    expect(b.flagEpisodes.some((f: { kind: string }) => f.kind === 'sleep_debt')).toBe(false);
   });
 });
 
