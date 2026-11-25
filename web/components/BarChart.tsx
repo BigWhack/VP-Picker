@@ -15,8 +15,12 @@ export function BarChart({ bars, height = 150, goal, format = (v: number) => Str
           </div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))`, gap: bars.length > 20 ? 2 : 8, marginTop: 6 }} className="tiny muted">
-        {bars.map((b, i) => <span key={b.label + i} style={{ textAlign: 'left', overflow: 'visible', whiteSpace: 'nowrap' }}>{bars.length > 16 && i % Math.ceil(bars.length / 8) !== 0 ? '' : b.label}</span>)}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))`, gap: bars.length > 20 ? 2 : 8, marginTop: 6, overflow: 'hidden' }} className="tiny muted">
+        {bars.map((b, i) => {
+          const show = bars.length <= 16 || i % Math.ceil(bars.length / 6) === 0;
+          const nearEnd = bars.length > 16 && i > bars.length - Math.ceil(bars.length / 6);
+          return <span key={b.label + i} style={{ textAlign: 'left', overflow: 'visible', whiteSpace: 'nowrap', direction: nearEnd ? 'rtl' : undefined }}>{show && !nearEnd ? b.label : ''}</span>;
+        })}
       </div>
     </div>
   );

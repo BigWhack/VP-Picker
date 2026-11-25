@@ -30,7 +30,7 @@ export function SleepWindow({ nights, usualBedtime, height = 220 }: { nights: Wi
           })}
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: `50px ${cols}`, gap: 10, textAlign: 'center', marginTop: 6 }} className="tiny muted">
+      <div style={{ display: 'grid', gridTemplateColumns: `50px ${cols}`, gap: nights.length > 10 ? 3 : 10, textAlign: 'center', marginTop: 6, overflow: 'hidden' }} className="tiny muted">
         <span />
         {nights.map((n, i) => <span key={n.date} style={i === nights.length - 1 ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{nights.length > 10 ? (i % 5 === 0 || i === nights.length - 1 ? new Date(`${n.date}T12:00:00Z`).getUTCDate() : '') : day(n.date)}</span>)}
       </div>

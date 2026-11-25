@@ -4,3 +4,6 @@ data/
 dist/
 .superpowers/
 .DS_Store
+.e2e/
+test-results/
+playwright-report/
