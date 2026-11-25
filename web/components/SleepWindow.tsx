@@ -17,7 +17,7 @@ export function SleepWindow({ nights, usualBedtime, height = 220 }: { nights: Wi
           {labels.map((l, i) => <span key={l} style={{ position: 'absolute', top: `calc(${(i / 7) * 100}% - 7px)` }}>{l}</span>)}
         </div>
         <div role="img" aria-label={`Bedtime and wake time for the last ${nights.length} nights`}
-          style={{ flex: 1, minWidth: 0, position: 'relative', height, display: 'grid', gridTemplateColumns: cols, gap: 10 }}>
+          style={{ flex: 1, minWidth: 0, position: 'relative', height, display: 'grid', gridTemplateColumns: cols, gap: nights.length > 10 ? 3 : 10 }}>
           {usualBedtime && <div style={{ position: 'absolute', left: 0, right: 0, top: `${pct(usualBedtime)}%`, borderTop: '1px dashed var(--dash)' }} />}
           {nights.map((n, i) => {
             const top = pct(n.bedtime); const bottom = pct(n.wake);
@@ -32,7 +32,7 @@ export function SleepWindow({ nights, usualBedtime, height = 220 }: { nights: Wi
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: `50px ${cols}`, gap: 10, textAlign: 'center', marginTop: 6 }} className="tiny muted">
         <span />
-        {nights.map((n, i) => <span key={n.date} style={i === nights.length - 1 ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{day(n.date)}</span>)}
+        {nights.map((n, i) => <span key={n.date} style={i === nights.length - 1 ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{nights.length > 10 ? (i % 5 === 0 || i === nights.length - 1 ? new Date(`${n.date}T12:00:00Z`).getUTCDate() : '') : day(n.date)}</span>)}
       </div>
     </div>
   );
