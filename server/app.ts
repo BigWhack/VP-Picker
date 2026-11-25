@@ -6,6 +6,7 @@ import { registerTodayRoutes } from './api/today.js';
 import { registerStravaAuthRoutes } from './api/strava-auth.js';
 import { StravaClient } from './ingest/strava/client.js';
 import { createStravaSync } from './ingest/strava/sync.js';
+import { enrichWeather } from './ingest/weather.js';
 
 export interface AppDeps {
   db: Db;
@@ -26,8 +27,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const client = new StravaClient(deps.db, { clientId: deps.env.STRAVA_CLIENT_ID, clientSecret: deps.env.STRAVA_CLIENT_SECRET }, deps.fetchFn ?? fetch, deps.now);
     deps.strava = createStravaSync(deps.db, client);
   }
+  if (deps.weather === undefined && deps.env && !deps.env.OFFLINE) {
+    deps.weather = () => enrichWeather(deps.db, deps.fetchFn ?? fetch, 50, (deps.now ?? (() => new Date()))());
+  }
   if (!deps.sync) {
-    deps.sync = new SyncController(() => ({ db: deps.db, dataDir: deps.dataDir, home: deps.home, now: deps.now, strava: deps.strava ?? null }));
+    deps.sync = new SyncController(() => ({ db: deps.db, dataDir: deps.dataDir, home: deps.home, now: deps.now, strava: deps.strava ?? null, weather: deps.weather ?? null }));
   }
   app.get('/api/health', async () => ({ ok: true }));
   registerSyncRoutes(app, deps);
