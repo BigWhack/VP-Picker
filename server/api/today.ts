@@ -66,6 +66,7 @@ export function todayPayload(deps: AppDeps, date: string) {
   const w = listWorkouts(db, { to: `${addDays(date, 1)}T12:00:00Z`, limit: 1 }).items[0];
   return {
     date,
+    tz: tzOf(deps),
     headline: scores?.headline ?? 'Not enough data yet to judge recovery.',
     detail: scores?.detail ?? '',
     recovery,
