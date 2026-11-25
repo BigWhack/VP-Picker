@@ -6,6 +6,7 @@ import { listWorkouts, workoutStreams, type MergedWorkout } from '../repo/workou
 import { analyzeRun, loadFor, zonesFor, type AnalysisContext, type RunAnalysis } from './run.js';
 import type { PhysioContext } from './recompute.js';
 import { analyzeRide, type RideAnalysis } from './ride.js';
+import { effortsFor } from './records.js';
 
 export interface GenericAnalysis { kind: 'generic'; zones: ReturnType<typeof zonesFor>; load: number; paceS: number | null }
 export type AnyAnalysis = (RunAnalysis | RideAnalysis | GenericAnalysis | { kind: string; load: number; [k: string]: unknown }) & { sig?: string; usedHrRest?: number; usedHrMax?: number };
@@ -23,7 +24,7 @@ export function analyzeWorkout(db: Db, w: MergedWorkout, ctx: AnalysisContext): 
   if (w.sport === 'ride') return analyzeRide(w, streams, w.weather ?? null, ctx, ctx.ftp);
   if (w.sport === 'run') {
     const samples: Sample[] = FORM_METRICS.flatMap((m) => getSamples(db, m, w.start, new Date(Date.parse(w.end) + 1000).toISOString()));
-    return analyzeRun(w, streams, samples, ctx);
+    return { ...analyzeRun(w, streams, samples, ctx), efforts: effortsFor(db, w, streams, ctx.tz ?? 'UTC') };
   }
   const paceS = w.distanceM && w.distanceM > 0 ? (w.movingS ?? w.durationS) / (w.distanceM / 1000) : null;
   return { kind: 'generic', zones: zonesFor(streams, ctx), load: loadFor(w, streams, ctx), paceS };
@@ -31,12 +32,13 @@ export function analyzeWorkout(db: Db, w: MergedWorkout, ctx: AnalysisContext): 
 
 /** Analyse every workout whose inputs changed since the last run (resting/max HR compared to the nearest bpm). */
 export function analyzeAllWorkouts(db: Db, physio: PhysioContext, s: Settings): { loads: Map<string, number>; analysed: number } {
-  const ctx: AnalysisContext = { ...physio, zoneModel: s.zoneModel, ftp: s.ftp };
+  const ctx: AnalysisContext = { ...physio, zoneModel: s.zoneModel, ftp: s.ftp, tz: s.tz };
   const loads = new Map<string, number>(); let analysed = 0;
   for (const w of listWorkouts(db).items) {
     const streamsKey = db.prepare(`SELECT COUNT(*) AS c FROM record_streams WHERE (source = 'apple' AND source_id = ?) OR (source = 'strava' AND source_id = ?)`)
       .get(w.appleId ?? '', w.stravaId ?? '') as { c: number };
-    const sig = `v3|${w.weather ? 'wx' : ''}|${w.appleId}|${w.stravaId}|${streamsKey.c}|${w.durationS}|${ctx.sex}|${ctx.zoneModel}|${s.ftp ?? ''}`;
+    const hasExtras = w.stravaId ? !!db.prepare(`SELECT 1 FROM workout_extras WHERE strava_id = ?`).get(w.stravaId) : false;
+    const sig = `v4|${s.tz}|${hasExtras ? 'x' : ''}|${w.weather ? 'wx' : ''}|${w.appleId}|${w.stravaId}|${streamsKey.c}|${w.durationS}|${ctx.sex}|${ctx.zoneModel}|${s.ftp ?? ''}`;
     const prev = getAnalysis<AnyAnalysis>(db, w.id);
     const physioSame = prev && Math.abs((prev.usedHrRest ?? -99) - ctx.hrRest) < 1 && Math.abs((prev.usedHrMax ?? -99) - ctx.hrMax) < 1;
     if (prev && prev.sig === sig && physioSame) { loads.set(w.id, prev.load); continue; }

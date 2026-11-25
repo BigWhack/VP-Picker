@@ -56,7 +56,9 @@ export function registerWorkoutRoutes(app: FastifyInstance, deps: AppDeps) {
     const gear = w.gearId ? getGear(db, w.gearId) : null;
     let similar: unknown[] = [];
     if (w.sport === 'run' && w.distanceM) {
-      const runs = listWorkouts(db, { sport: 'run' }).items.filter((r) => r.id !== id && r.distanceM).map((r) => {
+      const t = Date.parse(w.start);
+      const runs = listWorkouts(db, { sport: 'run', from: new Date(t - 90 * 86400000).toISOString(), to: w.start }).items
+        .filter((r) => r.id !== id && r.distanceM && Math.abs(r.distanceM - w.distanceM!) <= w.distanceM! * 0.1).map((r) => {
         const a = getAnalysis<{ paceS: number | null; ef: number | null }>(db, r.id);
         return { id: r.id, name: r.name, distanceM: r.distanceM!, start: r.start, paceS: a?.paceS ?? null, avgHr: r.avgHr ?? null, ef: a?.ef ?? null };
       });

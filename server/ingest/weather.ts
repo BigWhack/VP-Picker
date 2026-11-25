@@ -44,7 +44,7 @@ export function decodePolyline(str: string): [number, number][] {
 
 /** Add start-of-workout weather to GPS workouts that don't have it yet. Returns how many were enriched. */
 export async function enrichWeather(db: Db, fetchFn: typeof fetch = fetch, limit = 50, now = new Date()): Promise<number> {
-  const rows = db.prepare(`SELECT id, start, polyline, apple_id, strava_id FROM workouts WHERE weather_json IS NULL ORDER BY start DESC`).all() as
+  const rows = db.prepare(`SELECT id, start, polyline, apple_id, strava_id FROM workouts WHERE weather_json IS NULL OR (weather_json = 'false' AND polyline IS NOT NULL) ORDER BY start DESC`).all() as
     { id: string; start: string; polyline: string | null; apple_id: string | null; strava_id: string | null }[];
   let done = 0; let tried = 0;
   for (const w of rows) {
@@ -54,7 +54,7 @@ export async function enrichWeather(db: Db, fetchFn: typeof fetch = fetch, limit
       const s = (w.strava_id && getRecordStreams(db, 'strava', w.strava_id)) || (w.apple_id && getRecordStreams(db, 'apple', w.apple_id)) || null;
       point = s?.latlng?.[0];
     }
-    if (!point) continue;
+    if (!point) { db.prepare(`UPDATE workouts SET weather_json = 'false' WHERE id = ?`).run(w.id); continue; } // no GPS: don't check again
     tried++;
     try {
       const res = await fetchFn(weatherUrl(point[0], point[1], w.start, now));

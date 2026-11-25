@@ -66,7 +66,7 @@ function rowToWorkout(row: Record<string, unknown>): MergedWorkout {
   return {
     ...(base as unknown as MergedWorkout), id: row.id as string,
     appleId: (row.apple_id as string) ?? undefined, stravaId: (row.strava_id as string) ?? undefined,
-    sources: JSON.parse(row.sources as string), weather: row.weather_json ? JSON.parse(row.weather_json as string) : null,
+    sources: JSON.parse(row.sources as string), weather: row.weather_json ? (JSON.parse(row.weather_json as string) || null) : null,
   };
 }
 

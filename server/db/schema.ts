@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, blob, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, blob, primaryKey, index } from 'drizzle-orm/sqlite-core';
 
 export const imports = sqliteTable('imports', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -17,7 +17,7 @@ export const samples = sqliteTable('samples', {
   value: real('value').notNull(),
   unit: text('unit').notNull(),
   source: text('source').notNull(),
-}, (t) => [primaryKey({ columns: [t.metric, t.start, t.end, t.source] })]);
+}, (t) => [primaryKey({ columns: [t.metric, t.start, t.end, t.source] }), index('idx_samples_start').on(t.start)]);
 
 export const sleepSegments = sqliteTable('sleep_segments', {
   start: text('start').notNull(),

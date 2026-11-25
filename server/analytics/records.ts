@@ -1,5 +1,8 @@
 import type { Db } from '../db/client.js';
-import { getExtras, listWorkouts, workoutStreams } from '../repo/workouts.js';
+import type { Streams } from '../../shared/types.js';
+import { getExtras, listWorkouts, type MergedWorkout } from '../repo/workouts.js';
+import { getAnalysis } from '../repo/derived.js';
+import { localDate } from './dates.js';
 import { savePersonalRecords, getPersonalRecords } from '../repo/derived.js';
 
 export const STANDARD = [
@@ -61,26 +64,33 @@ export function predictions(recent: Effort[]): { label: string; distanceM: numbe
   return RACES.map((r) => ({ label: r.label, distanceM: r.distanceM, riegelS: riegel(src.timeS, src.distanceM, r.distanceM), vdotS: timeForVdot(v, r.distanceM), from: src }));
 }
 
-/** Gather efforts for every run (Strava best efforts, else fastest windows on the distance stream). */
+/** Best efforts for one run: Strava's own best efforts when present, else fastest windows on the distance stream. */
+export function effortsFor(db: Db, w: MergedWorkout, streams: Streams | null, tz: string): Effort[] {
+  const date = localDate(w.start, tz);
+  const ex = w.stravaId ? getExtras(db, w.stravaId) : null;
+  const be = (ex?.bestEfforts ?? null) as { distance: number; elapsed_time: number }[] | null;
+  const out: Effort[] = [];
+  if (be?.length) {
+    for (const e of be) {
+      const std = STANDARD.find((s) => Math.abs(s.distanceM - e.distance) < 5);
+      if (std) out.push({ distanceM: std.distanceM, timeS: e.elapsed_time, workoutId: w.id, date });
+    }
+    return out;
+  }
+  if (!streams?.distance) return out;
+  for (const std of STANDARD) {
+    const t = fastestWindow(streams.time, streams.distance, std.distanceM);
+    if (t) out.push({ distanceM: std.distanceM, timeS: t, workoutId: w.id, date });
+  }
+  return out;
+}
+
+/** Efforts for every run, read from the cached per-workout analyses (no stream decompression). */
 export function collectEfforts(db: Db): Effort[] {
   const out: Effort[] = [];
   for (const w of listWorkouts(db, { sport: 'run' }).items) {
-    const date = w.start.slice(0, 10);
-    const ex = w.stravaId ? getExtras(db, w.stravaId) : null;
-    const be = (ex?.bestEfforts ?? null) as { distance: number; moving_time?: number; elapsed_time: number }[] | null;
-    if (be?.length) {
-      for (const e of be) {
-        const std = STANDARD.find((s) => Math.abs(s.distanceM - e.distance) < 5);
-        if (std) out.push({ distanceM: std.distanceM, timeS: e.elapsed_time, workoutId: w.id, date });
-      }
-      continue;
-    }
-    const s = workoutStreams(db, w);
-    if (!s?.distance) continue;
-    for (const std of STANDARD) {
-      const t = fastestWindow(s.time, s.distance, std.distanceM);
-      if (t) out.push({ distanceM: std.distanceM, timeS: t, workoutId: w.id, date });
-    }
+    const a = getAnalysis<{ efforts?: Effort[] }>(db, w.id);
+    for (const e of a?.efforts ?? []) out.push({ ...e, workoutId: w.id });
   }
   return out;
 }

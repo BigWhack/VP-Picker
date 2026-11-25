@@ -1,0 +1,1 @@
+CREATE INDEX `idx_samples_start` ON `samples` (`start`);

@@ -59,7 +59,19 @@ export function rebuildWorkouts(db: Db): number {
   const strava = getWorkoutRecords(db, from, to, 'strava');
   const aBy = new Map(apple.map((r) => [r.sourceId, r]));
   const sBy = new Map(strava.map((r) => [r.sourceId, r]));
-  const list = matchWorkouts(apple, strava).map((m) => merge(m.appleId ? aBy.get(m.appleId) : undefined, m.stravaId ? sBy.get(m.stravaId) : undefined));
+  // Keep each workout's id once assigned (e.g. an Apple workout keeps its id when its Strava copy arrives later).
+  const prev = db.prepare(`SELECT id, apple_id, strava_id FROM workouts`).all() as { id: string; apple_id: string | null; strava_id: string | null }[];
+  const byApple = new Map(prev.filter((r) => r.apple_id).map((r) => [r.apple_id!, r.id]));
+  const byStrava = new Map(prev.filter((r) => r.strava_id).map((r) => [r.strava_id!, r.id]));
+  const used = new Set<string>();
+  const list = matchWorkouts(apple, strava).map((m) => {
+    const w = merge(m.appleId ? aBy.get(m.appleId) : undefined, m.stravaId ? sBy.get(m.stravaId) : undefined);
+    const keep = (m.appleId && byApple.get(m.appleId)) || (m.stravaId && byStrava.get(m.stravaId));
+    if (keep && !used.has(keep)) w.id = keep;
+    used.add(w.id);
+    return w;
+  });
   replaceWorkouts(db, list);
+  db.prepare(`DELETE FROM workout_analysis WHERE workout_id NOT IN (SELECT id FROM workouts)`).run();
   return list.length;
 }

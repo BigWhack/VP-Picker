@@ -5,7 +5,7 @@ import { trimpFromAverage, trimpFromStream } from './load.js';
 import { avg, gradeSeries, speedSeries, timeMean } from './streams.js';
 import { clamp } from './stats.js';
 
-export interface AnalysisContext { hrRest: number; hrMax: number; sex: 'male' | 'female'; zoneModel: 'hrr' | 'pctMax'; ftp?: number }
+export interface AnalysisContext { hrRest: number; hrMax: number; sex: 'male' | 'female'; zoneModel: 'hrr' | 'pctMax'; ftp?: number; tz?: string }
 
 export function minettiCost(grade: number): number {
   const i = clamp(grade, -0.45, 0.45);
